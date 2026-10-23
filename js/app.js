@@ -412,8 +412,13 @@ function renderBody() {
         <p class="mut ${cls}" style="margin-top:3px">${text}</p></div>`;
     }).join('');
 
-  const nextMonday = C.addDays(C.mondayOf(new Date()), 7);
-  $('bodyNext').textContent = `Measured every Monday after waking up. Next: ${C.shortDate(C.isoOf(nextMonday))}.`;
+  // This week's measurement is only "done" once it exists; until then it is due,
+  // which on a Monday means today rather than a week from now.
+  const thisMonday = C.isoOf(C.mondayOf(new Date()));
+  const takenThisWeek = measurements.some(m => m.day >= thisMonday);
+  const due = takenThisWeek ? C.isoOf(C.addDays(C.parseISO(thisMonday), 7)) : thisMonday;
+  $('bodyNext').textContent = 'Measured every Monday after waking up. ' +
+    (due === C.today() ? 'Due today.' : due < C.today() ? `Missed ${C.shortDate(due)}.` : `Next: ${C.shortDate(due)}.`);
 
   renderBodyTrend();
 
