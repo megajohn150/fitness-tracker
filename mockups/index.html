@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="pl" data-theme="light" data-style="sand">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gym — szkic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Inter:wght@300..700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+/* ---------- palety ---------- */
+[data-style="sand"]{
+  --bg:#F6F1E8; --surface:#FFFDF8; --ink:#1C1A16; --ink-2:#6F6757; --line:#E0D7C6;
+  --accent:#8A6A3E; --good:#5B7257;
+  --font-display:"Fraunces",serif; --font-ui:"Inter",system-ui,sans-serif; --font-num:"Fraunces",serif;
+  --radius:14px; --card-bd:1px; --label-tt:none; --label-ls:.01em; --label-size:12px; --shadow:0 1px 2px rgba(28,26,22,.04);
+}
+[data-style="sand"][data-theme="dark"]{
+  --bg:#141210; --surface:#1C1915; --ink:#F2EBDD; --ink-2:#9A9183; --line:#2C2823;
+  --accent:#C9A063; --good:#8DA888; --shadow:none;
+}
+[data-style="stone"]{
+  --bg:#F4F4F2; --surface:#F4F4F2; --ink:#121212; --ink-2:#767674; --line:#DEDEDA;
+  --accent:#121212; --good:#3E5C46;
+  --font-display:"Inter",sans-serif; --font-ui:"Inter",system-ui,sans-serif; --font-num:"Inter",sans-serif;
+  --radius:0px; --card-bd:0px; --label-tt:uppercase; --label-ls:.14em; --label-size:10px; --shadow:none;
+}
+[data-style="stone"][data-theme="dark"]{
+  --bg:#0E0E0E; --surface:#0E0E0E; --ink:#F0F0EE; --ink-2:#7E7E7C; --line:#242424;
+  --accent:#F0F0EE; --good:#8FB399;
+}
+[data-style="clay"]{
+  --bg:#EFE7E1; --surface:#FBF7F4; --ink:#241E1A; --ink-2:#7A6B61; --line:#E2D6CD;
+  --accent:#A65A3E; --good:#6B7A52;
+  --font-display:"Instrument Serif",serif; --font-ui:"Inter",system-ui,sans-serif; --font-num:"Instrument Serif",serif;
+  --radius:22px; --card-bd:0px; --label-tt:none; --label-ls:.02em; --label-size:12px; --shadow:0 2px 10px rgba(36,30,26,.05);
+}
+[data-style="clay"][data-theme="dark"]{
+  --bg:#17120F; --surface:#221A16; --ink:#F3E9E2; --ink-2:#A1897C; --line:#302520;
+  --accent:#DD8A66; --good:#9DB07E; --shadow:none;
+}
+
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-ui);font-size:15px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+.wrap{max-width:440px;margin:0 auto;padding:22px 20px 120px}
+
+/* ---------- switcher ---------- */
+.bar{position:sticky;top:0;z-index:9;display:flex;gap:6px;align-items:center;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);
+  padding:10px 0 12px;margin-bottom:6px}
+.bar button{font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  border:1px solid var(--line);background:transparent;color:var(--ink-2);padding:6px 10px;border-radius:99px}
+.bar button[aria-pressed="true"]{border-color:var(--ink);color:var(--ink)}
+.bar .sp{flex:1}
+
+/* ---------- typografia ---------- */
+.eyebrow{font-size:var(--label-size);letter-spacing:var(--label-ls);text-transform:var(--label-tt);color:var(--ink-2)}
+h1{font-family:var(--font-display);font-weight:400;font-size:30px;line-height:1.1;letter-spacing:-.02em;margin:2px 0 18px}
+[data-style="stone"] h1{font-weight:600;letter-spacing:-.03em}
+.sec{margin:26px 0 10px;display:flex;align-items:baseline;justify-content:space-between}
+.sec h2{font-size:var(--label-size);font-weight:500;letter-spacing:var(--label-ls);text-transform:var(--label-tt);color:var(--ink-2)}
+.sec a{font-size:11px;color:var(--ink-2);text-decoration:none;opacity:.8}
+
+.card{background:var(--surface);border:var(--card-bd) solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:18px}
+[data-style="stone"] .card{border-top:1px solid var(--line);border-radius:0;padding:18px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+[data-style="stone"] .grid2{gap:0 18px}
+
+.num{font-family:var(--font-num);font-weight:400;letter-spacing:-.02em;line-height:1}
+.n-xl{font-size:52px}.n-lg{font-size:34px}.n-md{font-size:24px}
+[data-style="stone"] .num{font-weight:600;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.unit{font-family:var(--font-ui);font-size:13px;color:var(--ink-2);letter-spacing:0}
+.delta{font-size:12px;color:var(--good)}
+.muted{color:var(--ink-2);font-size:13px}
+
+.track{height:3px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:12px}
+.track i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0;padding-bottom:0}
+.row:first-child{padding-top:0}
+.row .k{color:var(--ink-2);font-size:13px}
+.row .v{font-family:var(--font-num);font-size:17px;letter-spacing:-.01em}
+[data-style="stone"] .row .v{font-weight:600;font-variant-numeric:tabular-nums}
+
+.check{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.check:last-child{border-bottom:0}
+.box{width:17px;height:17px;border:1px solid var(--line);border-radius:4px;flex:none}
+[data-style="clay"] .box{border-radius:50%}
+.check.on .box{background:var(--accent);border-color:var(--accent)}
+.check.on span{color:var(--ink-2);text-decoration:line-through;text-decoration-thickness:1px}
+
+.pill{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);
+  border:1px solid var(--line);border-radius:99px;padding:3px 9px}
+.note{font-family:var(--font-display);font-size:16px;line-height:1.5}
+[data-style="stone"] .note{font-family:var(--font-ui);font-size:14px}
+svg .ln{fill:none;stroke:var(--accent);stroke-width:1.5}
+svg .ar{fill:var(--accent);opacity:.08}
+.caf{display:flex;gap:14px;align-items:center}
+.ring{width:72px;height:72px;flex:none}
+.ring circle{fill:none;stroke-width:5}
+.ring .bgc{stroke:var(--line)}
+.ring .fg{stroke:var(--accent);stroke-linecap:round}
+.tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:28px;
+  padding:14px 0 26px;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.tabbar b{color:var(--ink);font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="bar">
+    <button onclick="st('sand')" aria-pressed="true" id="b-sand">Sand</button>
+    <button onclick="st('stone')" id="b-stone">Stone</button>
+    <button onclick="st('clay')" id="b-clay">Clay</button>
+    <span class="sp"></span>
+    <button onclick="th()" id="b-th">☾</button>
+  </div>
+
+  <p class="eyebrow">Czwartek, 22 października</p>
+  <h1>Dzień dobry, Adam.</h1>
+
+  <!-- WAGA -->
+  <div class="card">
+    <div class="sec" style="margin:0 0 6px"><h2>Waga</h2><span class="pill">−0,3 kg / tydz.</span></div>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between">
+      <div>
+        <div class="num n-xl">78,4<span class="unit"> kg</span></div>
+        <p class="muted" style="margin-top:6px">Średnia 7 dni · <strong style="color:var(--ink);font-weight:500">78,7 kg</strong></p>
+      </div>
+      <svg viewBox="0 0 120 56" width="130" height="56" preserveAspectRatio="none">
+        <path class="ar" d="M0,30 20,24 40,32 60,22 80,26 100,16 120,20 120,56 0,56Z"/>
+        <path class="ln" d="M0,30 20,24 40,32 60,22 80,26 100,16 120,20"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- DZISIAJ -->
+  <div class="sec"><h2>Dzisiaj</h2><a href="#">szczegóły</a></div>
+  <div class="grid2">
+    <div class="card">
+      <p class="eyebrow">Kroki</p>
+      <div class="num n-lg" style="margin-top:8px">6 240</div>
+      <p class="muted" style="margin-top:4px">zostało 3 760</p>
+      <div class="track"><i style="width:62%"></i></div>
+    </div>
+    <div class="card">
+      <p class="eyebrow">Kalorie</p>
+      <div class="num n-lg" style="margin-top:8px">1 840</div>
+      <p class="muted" style="margin-top:4px">z 2 450 kcal</p>
+      <div class="track"><i style="width:75%"></i></div>
+    </div>
+  </div>
+
+  <!-- KOFEINA -->
+  <div class="sec"><h2>Kofeina</h2><span class="muted">sen o 23:30</span></div>
+  <div class="card caf">
+    <svg class="ring" viewBox="0 0 36 36">
+      <circle class="bgc" cx="18" cy="18" r="15.5"/>
+      <circle class="fg" cx="18" cy="18" r="15.5" stroke-dasharray="65 100" transform="rotate(-90 18 18)"/>
+    </svg>
+    <div>
+      <div class="num n-md">80<span class="unit"> / 120 mg</span></div>
+      <p class="muted" style="margin-top:5px">Do snu 7 h 15 min — możesz jeszcze <strong style="color:var(--ink);font-weight:500">40 mg</strong> (≈ ½ kawy), ostatnia do 15:30.</p>
+    </div>
+  </div>
+
+  <!-- KALKULATOR -->
+  <div class="sec"><h2>Kalkulator aktywności</h2></div>
+  <div class="card">
+    <p class="muted">3 760 kroków zostało — na bieżni:</p>
+    <div class="row" style="margin-top:12px"><span class="k">5,0 km/h · 8% incline</span><span class="v">34 min</span></div>
+    <div class="row"><span class="k">5,5 km/h · 12% incline</span><span class="v">26 min</span></div>
+    <div class="row"><span class="k">6,0 km/h · 3% incline</span><span class="v">22 min</span></div>
+  </div>
+
+  <!-- POMIARY -->
+  <div class="sec"><h2>Pomiary ciała</h2><a href="#">+ dodaj</a></div>
+  <div class="card">
+    <div class="row"><span class="k">Talia</span><span class="v">82,0 cm <span class="delta">−1,5</span></span></div>
+    <div class="row"><span class="k">Klatka</span><span class="v">102,0 cm <span class="delta">+0,5</span></span></div>
+    <div class="row"><span class="k">Biceps</span><span class="v">36,5 cm <span class="delta">+0,3</span></span></div>
+    <div class="row"><span class="k">Udo</span><span class="v">58,0 cm <span class="muted">—</span></span></div>
+  </div>
+
+  <!-- LISTA -->
+  <div class="sec"><h2>Na siłownię</h2><span class="muted">3 / 6</span></div>
+  <div class="card">
+    <div class="check on"><i class="box"></i><span>Shaker + izolat</span></div>
+    <div class="check on"><i class="box"></i><span>Pasy nawykowe</span></div>
+    <div class="check on"><i class="box"></i><span>Słuchawki</span></div>
+    <div class="check"><i class="box"></i><span>Ręcznik</span></div>
+    <div class="check"><i class="box"></i><span>Magnezja</span></div>
+    <div class="check"><i class="box"></i><span>Butelka wody 1 l</span></div>
+  </div>
+
+  <!-- NOTATKI -->
+  <div class="sec"><h2>Notatki</h2><a href="#">wszystkie</a></div>
+  <div class="card">
+    <p class="note">Przysiad — kolana uciekają do środka przy 100 kg. Zejść do 90 na dwa tygodnie.</p>
+    <p class="muted" style="margin-top:10px">20 paź</p>
+  </div>
+
+</div>
+
+<div class="tabbar"><b>Dziś</b><span>Waga</span><span>Trening</span><span>Notatki</span></div>
+
+<script>
+const h=document.documentElement;
+function st(s){h.dataset.style=s;['sand','stone','clay'].forEach(x=>document.getElementById('b-'+x).setAttribute('aria-pressed',x===s))}
+function th(){const d=h.dataset.theme==='dark';h.dataset.theme=d?'light':'dark';document.getElementById('b-th').textContent=d?'☾':'☀'}
+</script>
+</body>
+</html>
