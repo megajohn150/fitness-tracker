@@ -220,7 +220,7 @@ function multiSpark(id, series) {
     `<line class="zero" x1="0" y1="${Y(0).toFixed(1)}" x2="${w}" y2="${Y(0).toFixed(1)}"/>` +
     series.map((s, k) => {
       const points = s.values.map((v, i) => `${X(i, s.values.length).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
-      const cls = ['ln', 'ln2', 'ln3'][k] ?? 'ln';
+      const cls = ['s1', 's2', 's3'][k] ?? 's1';
       return `<polyline class="${cls}" points="${points}"/>` +
              `<circle class="dot" style="fill:var(${s.color})" cx="${X(s.values.length - 1, s.values.length)}" cy="${Y(s.values.at(-1))}" r="2.6"/>`;
     }).join('');
@@ -326,9 +326,9 @@ function renderBodyTrend() {
   card.classList.remove('hide');
 
   const metrics = [
-    { key: 'biceps', label: 'Biceps', color: '--accent' },
-    { key: 'quad',   label: 'Quad',   color: '--good' },
-    { key: 'waist',  label: 'Waist',  color: '--warn' }
+    { key: 'biceps', label: 'Biceps', color: '--c1' },
+    { key: 'quad',   label: 'Quad',   color: '--c2' },
+    { key: 'waist',  label: 'Waist',  color: '--c3' }
   ];
   const series = metrics.map(m => ({
     ...m,
