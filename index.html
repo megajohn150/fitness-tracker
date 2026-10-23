@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gym</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Gym">
+<meta name="theme-color" content="#F6F1E8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Inter:wght@300..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- sign in --------------------------------------------------------------- -->
+<div class="auth hide" id="auth">
+  <h1>Gym</h1>
+  <p class="mut">Sign in to sync your log.</p>
+  <form id="authForm">
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="authPass" placeholder="Password" autocomplete="current-password" required>
+    <button class="btn pri" type="submit" id="authBtn">Sign in</button>
+    <p class="err hide" id="authErr"></p>
+  </form>
+</div>
+
+<!-- app ------------------------------------------------------------------- -->
+<div class="app hide" id="app">
+<header>
+  <div class="hrow">
+    <div style="flex:1">
+      <p class="eyebrow" id="sub"></p>
+      <h1 id="title">Today</h1>
+    </div>
+    <button class="icon" id="themeBtn" title="Theme">☾</button>
+  </div>
+</header>
+
+<!-- TODAY -->
+<section class="view on" id="v-today">
+  <button class="btn pri cta hide" id="mondayCta">
+    <b>Add measurements</b>
+    <small>Monday · biceps, quad, waist</small>
+  </button>
+
+  <div class="card">
+    <div class="sec" style="margin:0 0 4px"><h2>Weight</h2><span class="pill up hide" id="wPill"></span></div>
+    <div id="wLogged" class="hide">
+      <div class="num n1"><b id="wToday">—</b><span class="unit"> kg</span></div>
+      <p class="mut" style="margin-top:6px">Week avg <b id="wAvg" style="color:var(--ink);font-weight:500">—</b> · <span id="wDays"></span></p>
+    </div>
+    <div id="wEmpty">
+      <div class="num n1" style="color:var(--ink-3)">—<span class="unit" style="color:var(--ink-3)"> kg</span></div>
+      <p class="mut" style="margin-top:6px" id="wLast"></p>
+    </div>
+    <svg class="spark" viewBox="0 0 300 64" preserveAspectRatio="none" id="sp1"></svg>
+    <div class="days" id="days"></div>
+    <button class="btn pri" id="logWeightBtn">Log today’s weight</button>
+  </div>
+
+  <div class="g2" style="margin-top:10px">
+    <div class="card">
+      <p class="lab">Steps today</p>
+      <div class="num n2" style="margin-top:7px" id="tSteps">—</div>
+      <p class="mut" id="tDayLabel"></p>
+    </div>
+    <div class="card">
+      <p class="lab">Eat today</p>
+      <div class="num n2" style="margin-top:7px" id="tEat">—</div>
+      <p class="mut" id="tSurplus"></p>
+    </div>
+  </div>
+
+  <button class="btn" data-go="calc" style="margin-top:14px">Treadmill calculator ›</button>
+
+  <div class="sec"><h2>Gym bag</h2><em id="bagCount"></em></div>
+  <div class="card bag" id="bagToday"></div>
+
+  <div class="sec"><h2>Caffeine</h2><em id="sleepHint"></em></div>
+  <div class="card caf">
+    <div style="display:flex;align-items:flex-end;gap:14px">
+      <div style="flex:1">
+        <p class="lab">Drinking at</p>
+        <input class="field time" type="time" aria-label="Time">
+      </div>
+      <div style="text-align:right">
+        <p class="lab">Max</p>
+        <div class="num n2" style="margin-top:7px"><b class="mg">—</b><span class="unit"> mg</span></div>
+      </div>
+    </div>
+    <p class="mut sub" style="margin-top:11px"></p>
+  </div>
+</section>
+
+<!-- WEIGHT -->
+<section class="view" id="v-weight">
+  <div class="card">
+    <div style="display:flex;align-items:flex-end;gap:12px">
+      <div style="flex:1">
+        <p class="lab" id="wkLabel">Week average</p>
+        <div class="num n1" style="margin-top:6px"><b id="wkAvg">—</b><span class="unit"> kg</span></div>
+      </div>
+      <span class="pill up hide" id="wkDelta"></span>
+    </div>
+    <svg class="spark" viewBox="0 0 300 84" preserveAspectRatio="none" id="sp2" style="height:84px;margin-top:14px"></svg>
+    <p class="mut" style="margin-top:12px" id="wRange"></p>
+  </div>
+
+  <div class="card hide" id="wHint" style="border-color:var(--warn)">
+    <p class="lab" style="color:var(--warn)" id="wHintLab"></p>
+    <p class="note" style="margin-top:6px" id="wHintText"></p>
+  </div>
+
+  <div class="sec"><h2 id="phaseLabel">Phase</h2><em id="phaseStart"></em></div>
+  <div class="card">
+    <div class="scroll"><table>
+      <thead><tr><th>Week</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Avg</th></tr></thead>
+      <tbody id="bulkRows"></tbody>
+    </table></div>
+    <button class="btn pri" id="logWeightBtn2">Log today’s weight</button>
+  </div>
+</section>
+
+<!-- BODY -->
+<section class="view" id="v-body">
+  <div class="g3" id="bodyNow"></div>
+  <p class="mut" style="margin-top:10px" id="bodyNext"></p>
+
+  <div class="sec"><h2>Measurements</h2><em>every Monday</em></div>
+  <div class="card">
+    <div class="scroll"><table>
+      <thead><tr><th>Date</th><th>Week</th><th>Biceps</th><th>Quad</th><th>Waist</th></tr></thead>
+      <tbody id="bodyRows"></tbody>
+    </table></div>
+    <button class="btn pri" id="addMeasureBtn">Add measurement</button>
+  </div>
+</section>
+
+<!-- ACTIVITY -->
+<section class="view" id="v-activity">
+  <div class="g3">
+    <div class="card"><p class="lab">Steps / wk</p><div class="num n3" style="margin-top:6px" id="aSteps">—</div></div>
+    <div class="card"><p class="lab">Eat / day</p><div class="num n3" style="margin-top:6px" id="aEat">—</div></div>
+    <div class="card"><p class="lab">Surplus</p><div class="num n3" style="margin-top:6px" id="aSurplus">—</div></div>
+  </div>
+
+  <div class="sec"><h2>Week plan</h2><em>tap to edit</em></div>
+  <div class="card">
+    <div class="scroll"><table>
+      <thead><tr><th>Day</th><th>Steps</th><th>Session</th><th>Extra</th></tr></thead>
+      <tbody id="planRows"></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec"><h2>Energy balance</h2><em>tap to edit</em></div>
+  <div class="card">
+    <div class="scroll"><table>
+      <thead><tr><th>Day</th><th>Maint.</th><th>Eat</th><th>Diff</th></tr></thead>
+      <tbody id="energyRows"></tbody>
+      <tfoot id="energyTot"></tfoot>
+    </table></div>
+  </div>
+</section>
+
+<!-- MORE -->
+<section class="view" id="v-more">
+  <div class="card">
+    <button class="nav" data-go="caffeine"><span>Caffeine<small>Limit by time to sleep</small></span></button>
+    <button class="nav" data-go="bag"><span>Gym bag<small>What goes in, by group</small></span></button>
+    <button class="nav" data-go="notes"><span>Notes<small>Rules &amp; observations</small></span></button>
+    <button class="nav" data-go="calc"><span>Treadmill calculator<small>Steps, minutes, kcal</small></span></button>
+  </div>
+  <div class="sec"><h2>Settings</h2></div>
+  <div class="card">
+    <div class="row"><span class="k">Appearance</span><span class="v" id="thName">Light</span></div>
+    <div class="row"><span class="k">Phase</span><span class="v" id="setPhase">—</span></div>
+    <div class="row"><span class="k">Sleep time</span><span class="v"><input class="field time" type="time" id="setSleep" style="font-size:16px;border:0;padding:0;margin:0" aria-label="Sleep time"></span></div>
+    <div class="row"><span class="k">Storage</span><span class="v" id="setStorage">—</span></div>
+  </div>
+  <button class="btn hide" id="signOutBtn">Sign out</button>
+</section>
+
+<!-- CAFFEINE -->
+<section class="view" id="v-caffeine">
+  <div class="card caf">
+    <div style="display:flex;align-items:flex-end;gap:14px">
+      <div style="flex:1">
+        <p class="lab">Drinking at</p>
+        <input class="field time" type="time" aria-label="Time">
+      </div>
+      <div style="text-align:right">
+        <p class="lab">Max</p>
+        <div class="num n2" style="margin-top:7px"><b class="mg">—</b><span class="unit"> mg</span></div>
+      </div>
+    </div>
+    <p class="mut sub" style="margin-top:11px"></p>
+  </div>
+  <div class="sec"><h2>Limits</h2><em>time until sleep</em></div>
+  <div class="card"><table>
+    <thead><tr><th>To sleep</th><th>Max caffeine</th></tr></thead>
+    <tbody id="cafTable"></tbody>
+  </table></div>
+</section>
+
+<!-- BAG -->
+<section class="view" id="v-bag">
+  <div class="card bag" id="bagFull"></div>
+  <p class="mut" style="margin-top:12px">Reference list — nothing to tick off.</p>
+</section>
+
+<!-- NOTES -->
+<section class="view" id="v-notes">
+  <div class="sec" style="margin-top:0"><h2>Rules</h2></div>
+  <div class="card">
+    <p class="note">Weight up more than <b>0.25 kg</b> per week → cut weekly calories by 300–600.</p>
+  </div>
+  <div class="card">
+    <p class="note">Weight up less than <b>0.1 kg</b> per week → add 500 calories to the week.</p>
+  </div>
+  <div class="sec"><h2>Journal</h2></div>
+  <div id="noteList"></div>
+  <button class="btn pri" id="addNoteBtn">New note</button>
+</section>
+
+<!-- CALCULATOR -->
+<section class="view" id="v-calc">
+  <div class="card">
+    <div class="g2">
+      <div><p class="lab">From</p><select class="sel" id="cFrom"></select></div>
+      <div><p class="lab">To</p><select class="sel" id="cTo"></select></div>
+    </div>
+    <p class="lab" style="margin-top:18px">Amount</p>
+    <input class="field" id="cAmt" inputmode="decimal" value="10 000" aria-label="Amount">
+    <p class="lab" style="margin-top:20px">Result</p>
+    <div class="num n1" style="margin-top:6px"><b id="cRes">—</b><span class="unit" id="cUnit"></span></div>
+    <p class="mut" id="cForm" style="margin-top:7px"></p>
+  </div>
+  <button class="btn" id="swapBtn">Swap ⇄</button>
+  <div class="sec"><h2>Rates</h2></div>
+  <div class="card">
+    <div class="row"><span class="k">Incline minute</span><span class="v">262 steps</span></div>
+    <div class="row"><span class="k">Stepper minute</span><span class="v">400 steps</span></div>
+    <div class="row"><span class="k">Step</span><span class="v">0.043 kcal</span></div>
+    <div class="row"><span class="k">Incline minute</span><span class="v">11.27 kcal</span></div>
+  </div>
+</section>
+
+</div>
+
+<nav class="tabs hide" id="tabs">
+  <button class="on" data-t="today" data-go="today">Today</button>
+  <button data-t="weight" data-go="weight">Weight</button>
+  <button data-t="body" data-go="body">Body</button>
+  <button data-t="activity" data-go="activity">Activity</button>
+  <button data-t="more" data-go="more">More</button>
+</nav>
+
+<dialog class="sheet" id="sheet"><form method="dialog" class="sheet-in" id="sheetForm">
+  <h3 id="sheetTitle"></h3>
+  <p class="mut" id="sheetSub"></p>
+  <div class="fields" id="sheetFields"></div>
+  <div class="btns">
+    <button class="btn" value="cancel" type="submit">Cancel</button>
+    <button class="btn pri" value="save" type="submit" id="sheetSave">Save</button>
+  </div>
+</form></dialog>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
