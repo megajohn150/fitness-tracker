@@ -851,21 +851,33 @@ function setupCalculator() {
   from.value = 'steps';
   to.value = 'incline';
 
+  // After a swap the field shows a rounded number while the exact one is kept,
+  // so swapping back and forth does not drift (10 000 → 38.2 → 10 000, not 10 008).
+  let exact = null;
+  const amountIn = () => {
+    if (exact != null && show(exact) === $('cAmt').value) return exact;
+    return parseFloat($('cAmt').value.replace(/[^\d.,-]/g, '').replace(',', '.'));
+  };
+  const show = n => {
+    const digits = Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2;
+    return n.toFixed(digits).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  };
+
   const run = () => {
-    const amount = parseFloat($('cAmt').value.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    const amount = amountIn();
     $('cUnit').textContent = ' ' + C.UNITS[to.value].label;
-    if (Number.isNaN(amount)) { $('cRes').textContent = '—'; $('cForm').textContent = ''; return; }
+    if (Number.isNaN(amount)) { $('cRes').textContent = '—'; $('cForm').textContent = ''; return null; }
     const factor = C.UNITS[from.value].factor / C.UNITS[to.value].factor;
     const result = amount * factor;
-    const digits = Math.abs(result) >= 100 ? 0 : Math.abs(result) >= 10 ? 1 : 2;
-    $('cRes').textContent = result.toFixed(digits).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    $('cRes').textContent = show(result);
     $('cForm').textContent = from.value === to.value ? 'same unit'
       : factor >= 1 ? `${sp(amount)} × ${+factor.toFixed(4)}`
       : `${sp(amount)} ÷ ${+(1 / factor).toFixed(4)}`;
+    return result;
   };
 
   from.onchange = to.onchange = run;
-  $('cAmt').oninput = run;
+  $('cAmt').oninput = () => { exact = null; run(); };
 
   const stepsNow = $('stepsNow');
   const saved = todaySteps();
@@ -878,11 +890,19 @@ function setupCalculator() {
     if (!left) return;
     from.value = 'steps';
     if (to.value === 'steps') to.value = 'incline';
+    exact = null;
     $('cAmt').value = sp(left);
     run();
     $('cAmt').scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
-  $('swapBtn').onclick = () => { [from.value, to.value] = [to.value, from.value]; run(); };
+  // Swapping the units carries the answer with it, so 10 000 steps → 38.2 incline
+  // minutes becomes 38.2 incline minutes → 10 000 steps, not 10 000 minutes.
+  $('swapBtn').onclick = () => {
+    const result = run();
+    [from.value, to.value] = [to.value, from.value];
+    if (result != null) { exact = result; $('cAmt').value = show(result); }
+    run();
+  };
   run();
 }
 
