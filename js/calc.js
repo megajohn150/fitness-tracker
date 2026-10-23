@@ -79,6 +79,9 @@ export function caffeineCutoff(sleepHHMM, mg) {
   return `${String(Math.floor(t)).padStart(2, '0')}:${String(Math.round((t % 1) * 60)).padStart(2, '0')}`;
 }
 
+/** Rough energy content of a kilo of body mass — the usual 7 700 kcal. */
+export const KCAL_PER_KG = 7700;
+
 // Everything is expressed in steps — see supabase/README or the Rates card.
 export const UNITS = {
   steps:   { label: 'steps',           factor: 1 },

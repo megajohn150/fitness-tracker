@@ -9,6 +9,7 @@ const sp     = n => Math.round(n).toLocaleString('en-US').replace(/,/g, ' ');
 const num    = t => { const v = parseFloat(String(t).replace(/[^\d.-]/g, '')); return Number.isNaN(v) ? 0 : v; };
 const sign   = n => (n < 0 ? '−' : '+') + sp(Math.abs(n));
 const signKg = n => (n < 0 ? '−' : '+') + Math.abs(n).toFixed(2);
+const weeklyKg = kcal => `${kcal < 0 ? '−' : '+'}${Math.abs(kcal / C.KCAL_PER_KG).toFixed(2)}`;
 
 let store = null;
 
@@ -444,6 +445,8 @@ function updateTotals() {
   $('aSteps').textContent = (steps / 1000).toFixed(steps % 1000 ? 1 : 0) + 'k';
   $('aEat').textContent = sp(eat / 7);
   $('aSurplus').textContent = sign(eat - maint);
+  $('energyRate').textContent = `${sign(eat - maint)} kcal over the week is about ` +
+    `${weeklyKg(eat - maint)} kg — counting ${sp(C.KCAL_PER_KG)} kcal to a kilo.`;
   $('energyTot').innerHTML = `<tr class="tot"><td>Total</td><td>${sp(maint)}</td><td>${sp(eat)}</td><td>${sign(eat - maint)}</td></tr>`;
   $$('#energyRows tr').forEach(tr => {
     const dow = Number(tr.querySelector('[data-dow]').dataset.dow);
@@ -622,7 +625,7 @@ function renderReview() {
 
   const eat = plan.reduce((a, d) => a + d.eat, 0);
   const maint = plan.reduce((a, d) => a + d.maintenance, 0);
-  $('revSurplus').textContent = `${sign(eat - maint)} kcal / wk`;
+  $('revSurplus').textContent = `${sign(eat - maint)} kcal · ${weeklyKg(eat - maint)} kg / wk`;
   $('revRows').innerHTML = plan.map(d =>
     `<tr><td>${C.DAY_NAMES[d.dow]}</td><td>${sp(d.maintenance)}</td><td>${sp(d.eat)}</td>` +
     `<td class="diff">${sign(d.eat - d.maintenance)}</td></tr>`).join('');
