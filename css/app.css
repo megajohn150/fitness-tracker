@@ -95,24 +95,37 @@ td.del button:active{color:var(--warn)}
   font-family:var(--fd);font-size:17px;letter-spacing:-.01em;line-height:1.3}
 .bag li::before{content:"";width:3px;height:3px;border-radius:50%;background:var(--ink-3);flex:none}
 .bag li span{flex:1;outline:none;border-radius:5px}
-#bagToday li{cursor:pointer;padding:4px 0;transition:transform .34s cubic-bezier(.2,.7,.2,1);
-  -webkit-tap-highlight-color:transparent}
-#bagToday li span{position:relative;transition:color .25s ease}
+/* Today's list is a checklist: a ring that fills, a line that draws itself,
+   and the row sinking to the bottom of its own group. */
+#bagToday .bg+.bg{margin-top:14px;padding-top:14px}
+#bagToday h3{transition:opacity .3s ease}
+#bagToday .bg.all-done h3{opacity:.45}
+#bagToday ul{margin-top:7px}
+#bagToday li{cursor:pointer;padding:6px 0;gap:11px;align-items:center;
+  transition:transform .34s cubic-bezier(.2,.7,.2,1);-webkit-tap-highlight-color:transparent}
+#bagToday li:active{opacity:.55}
+
+#bagToday li::before{width:16px;height:16px;border-radius:50%;background:transparent;
+  border:1px solid var(--line);box-sizing:border-box;
+  background-repeat:no-repeat;background-position:center;background-size:9px 9px;
+  transition:background-color .2s ease,border-color .2s ease,transform .2s ease}
+#bagToday li.done::before{background-color:var(--accent);border-color:var(--accent);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6.3 4.4 9.2 10.5 2.8' stroke='%23FFFDF8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  animation:pop .26s ease}
+[data-theme="dark"] #bagToday li.done::before{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6.3 4.4 9.2 10.5 2.8' stroke='%231C1915' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E")}
+@keyframes pop{0%{transform:scale(.8)}55%{transform:scale(1.12)}100%{transform:scale(1)}}
+
+#bagToday li span{position:relative;flex:0 1 auto;transition:color .28s ease,opacity .28s ease}
 #bagToday li span::after{content:"";position:absolute;left:-1px;right:-1px;top:54%;height:1px;
   background:currentColor;transform:scaleX(0);transform-origin:left;
   transition:transform .3s cubic-bezier(.4,0,.2,1)}
-#bagToday li.done span{color:var(--ink-3)}
+#bagToday li.done span{color:var(--ink-3);opacity:.85}
 #bagToday li.done span::after{transform:scaleX(1)}
-#bagToday li::before{transition:background .25s ease}
-#bagToday li.done::before{background:var(--line)}
-.bag li span:focus{background:color-mix(in srgb,var(--accent) 10%,transparent);
-  box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 10%,transparent)}
-.bag li button{font:inherit;font-size:16px;line-height:1;color:var(--ink-3);background:none;border:0;
-  cursor:pointer;padding:0 0 0 8px}
-.bag li button:active{color:var(--warn)}
-.bag .add{font:inherit;font-size:13px;color:var(--ink-3);background:none;border:0;cursor:pointer;
-  padding:7px 0 0;margin-left:12px}
-.bag .add:active{color:var(--accent)}
+
+@media (prefers-reduced-motion:reduce){
+  #bagToday li,#bagToday li::before,#bagToday li span,#bagToday li span::after{transition:none;animation:none}
+}
 
 .note{font-family:var(--fd);font-size:16px;line-height:1.5}
 .note-head{display:flex;justify-content:space-between;align-items:baseline;margin-top:9px}

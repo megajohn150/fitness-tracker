@@ -521,7 +521,8 @@ function renderBag() {
   $('bagToday').innerHTML = BAG_GROUPS.filter(g => inGroup(g).length).map(g => {
     const rows = inGroup(g).slice().sort((a, b) =>
       (bagChecked.has(String(a.id)) - bagChecked.has(String(b.id))) || a.position - b.position);
-    return `<div class="bg"><h3>${g}</h3><ul>` + rows.map(i =>
+    const allDone = rows.every(i => bagChecked.has(String(i.id)));
+    return `<div class="bg${allDone ? ' all-done' : ''}"><h3>${g}</h3><ul>` + rows.map(i =>
       `<li class="${bagChecked.has(String(i.id)) ? 'done' : ''}" data-check="${i.id}" data-pos="${i.position}">` +
       `<span>${escapeHtml(i.item)}</span></li>`).join('') + '</ul></div>';
   }).join('');
@@ -573,6 +574,8 @@ function toggleBagItem(id) {
   });
 
   updateBagCount();
+  list.closest('.bg').classList.toggle('all-done',
+    [...list.children].every(el => el.classList.contains('done')));
 }
 
 async function addBagItem(grp) {
