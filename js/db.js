@@ -122,6 +122,7 @@ const remote = {
   async setWeight({ day, kg })       { const db = await client(); check(await db.from('weights').upsert({ day, kg }, { onConflict: 'user_id,day' })); },
   async deleteWeight({ day })        { const db = await client(); check(await db.from('weights').delete().eq('day', day)); },
   async setMeasurement({ day, values }) { const db = await client(); check(await db.from('measurements').upsert({ day, ...values }, { onConflict: 'user_id,day' })); },
+  async deleteMeasurement({ day })   { const db = await client(); check(await db.from('measurements').delete().eq('day', day)); },
   async setWeekDay({ dow, patch })   { const db = await client(); check(await db.from('week_days').update(patch).eq('dow', dow).eq('user_id', await uid())); },
   async setSettings({ patch })       { const db = await client(); check(await db.from('settings').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', await uid())); },
   async addNote({ note })            { const db = await client(); check(await db.from('notes').upsert(note, { onConflict: 'id' })); },
@@ -192,6 +193,10 @@ export function makeStore(data) {
       if (row) Object.assign(row, values); else data.measurements.push({ day, ...values });
       data.measurements.sort((a, b) => a.day.localeCompare(b.day));
       await queue('setMeasurement', { day, values });
+    },
+    async deleteMeasurement(day) {
+      data.measurements = data.measurements.filter(m => m.day !== day);
+      await queue('deleteMeasurement', { day });
     },
     async setWeekDay(dow, patch) {
       Object.assign(data.week.find(d => d.dow === dow), patch);

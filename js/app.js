@@ -91,7 +91,11 @@ function toast(message) {
 
 /* -------------------------------- sheet --------------------------------- */
 
-function openSheet({ title, sub = '', fields }) {
+function confirmSheet({ title, sub, action = 'Delete' }) {
+  return openSheet({ title, sub, fields: [], action }).then(Boolean);
+}
+
+function openSheet({ title, sub = '', fields, action = 'Save' }) {
   const dialog = $('sheet');
   $('sheetTitle').textContent = title;
   $('sheetSub').textContent = sub;
@@ -103,7 +107,9 @@ function openSheet({ title, sub = '', fields }) {
         : `<input class="field" name="${f.key}" type="${f.type ?? 'text'}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}"
              value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" ${f.step ? `step="${f.step}"` : ''}>`}
     </div>`).join('');
-  $('sheetFields').style.flexDirection = fields.length > 2 || fields[0].type === 'textarea' ? 'column' : 'row';
+  $('sheetSave').textContent = action;
+  $('sheetFields').style.flexDirection =
+    fields.length > 2 || fields[0]?.type === 'textarea' ? 'column' : 'row';
 
   dialog.showModal();
   setTimeout(() => $('sheetFields').querySelector('input,textarea')?.focus(), 50);
@@ -230,8 +236,11 @@ function renderWeight() {
         if (day > todayISO) return '<td class="mut">—</td>';        // nothing to log yet
         return `<td contenteditable data-day="${day}">${v == null ? '—' : v.toFixed(2)}</td>`;
       }).join('') +
-      `<td><b>${week.avg?.toFixed(2) ?? '—'}</b></td></tr>`;
-  }).join('') || '<tr><td colspan="7" class="mut">No entries yet</td></tr>';
+      `<td><b>${week.avg?.toFixed(2) ?? '—'}</b></td>` +
+      (week.days.some(v => v != null)
+        ? `<td class="del"><button data-clear-week="${week.monday}" aria-label="Clear ${week.label}">×</button></td>`
+        : '<td class="del"></td>') + '</tr>';
+  }).join('') || '<tr><td colspan="8" class="mut">No entries yet</td></tr>';
 
   $('phaseLabel').textContent = settings.phase_label;
   $('phaseStart').textContent = weeks.length ? `start ${C.shortDate(weeks[0].monday)}` : '';
@@ -258,8 +267,9 @@ function renderBody() {
   $('bodyRows').innerHTML = measurements.map((m, i) => {
     const isLast = i === measurements.length - 1;
     return `<tr class="${isLast ? 'cur' : ''}"><td>${C.shortDate(m.day)}</td><td>W${weekOf(m.day)}</td>` +
-      ['biceps', 'quad', 'waist'].map(k => `<td>${m[k] != null ? Number(m[k]).toFixed(1) : '—'}</td>`).join('') + '</tr>';
-  }).join('') || '<tr><td colspan="5" class="mut">No measurements yet</td></tr>';
+      ['biceps', 'quad', 'waist'].map(k => `<td>${m[k] != null ? Number(m[k]).toFixed(1) : '—'}</td>`).join('') +
+      `<td class="del"><button data-del-measure="${m.day}" aria-label="Delete measurement">×</button></td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="mut">No measurements yet</td></tr>';
 
   const last = measurements.at(-1), prev = measurements.at(-2);
   $('bodyNow').innerHTML = [['Biceps', 'biceps', false], ['Quad', 'quad', false], ['Waist', 'waist', true]]
@@ -465,12 +475,48 @@ async function addNote() {
   toast('Note saved');
 }
 
+async function clearWeek(monday) {
+  const weeks = C.weeklyWeights(store.data.weights, store.data.settings.phase_start);
+  const week = weeks.find(w => w.monday === monday);
+  const days = week.days
+    .map((v, k) => (v == null ? null : C.isoOf(C.addDays(C.parseISO(monday), k))))
+    .filter(Boolean);
+
+  const ok = await confirmSheet({
+    title: `Clear ${week.label}?`,
+    sub: `${days.length} ${days.length === 1 ? 'entry' : 'entries'} from the week of ${C.shortDate(monday)}.`,
+    action: 'Clear week'
+  });
+  if (!ok) return;
+
+  for (const day of days) await store.deleteWeight(day);
+  renderWeight();
+  toast(`${week.label} cleared`);
+}
+
+async function deleteMeasurement(day) {
+  const ok = await confirmSheet({
+    title: 'Delete measurement?',
+    sub: `Taken on ${C.shortDate(day)}.`
+  });
+  if (!ok) return;
+  await store.deleteMeasurement(day);
+  renderBody();
+  toast('Measurement deleted');
+}
+
 /* --------------------------------- wiring ------------------------------- */
 
 function wire() {
   document.addEventListener('click', async e => {
     const target = e.target.closest('[data-go]');
     if (target) return go(target.dataset.go);
+
+    const monday = e.target.dataset.clearWeek;
+    if (monday) return clearWeek(monday);
+
+    const measureDay = e.target.dataset.delMeasure;
+    if (measureDay) return deleteMeasurement(measureDay);
 
     const noteId = e.target.dataset.note;
     if (noteId) {
