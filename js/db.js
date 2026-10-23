@@ -1,10 +1,15 @@
 // Data layer. Talks to Supabase when config.js is filled in, otherwise keeps
-// everything in this browser so the app stays usable (and testable) offline.
+// everything in this browser.
+//
+// Offline: every change is applied in memory, written to a local snapshot and
+// queued in an outbox. The queue drains in order as soon as the network is
+// back, so the app stays fully usable with no connection.
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
 export const REMOTE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-const CACHE_KEY = 'gym.cache.v1';
-const LOCAL_KEY = 'gym.local.v1';
+const CACHE_KEY  = 'gym.cache.v1';
+const LOCAL_KEY  = 'gym.local.v1';
+const OUTBOX_KEY = 'gym.outbox.v1';
 
 export const DEFAULT_WEEK = [
   { dow: 0, steps: 22000, session: 'Rest', extra: 'WF',     maintenance: 3025, eat: 3100 },
@@ -23,9 +28,7 @@ export const DEFAULT_BAG = [
 ].flatMap(([grp, items], g) =>
   items.map((item, i) => ({ id: `${g}-${i}`, grp, item, position: g * 100 + i })));
 
-export const DEFAULT_SETTINGS = {
-  sleep_time: '23:30', phase_label: 'Bulk', phase_start: null
-};
+export const DEFAULT_SETTINGS = { sleep_time: '23:30', phase_label: 'Bulk', phase_start: null };
 
 const emptyData = () => ({
   settings: { ...DEFAULT_SETTINGS }, weights: [], measurements: [],
@@ -39,25 +42,19 @@ const write = (key, value) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
 };
 
-/* ------------------------------- local ---------------------------------- */
+export const cached = () => read(CACHE_KEY, null);
 
-const local = {
-  async session() { return { email: 'local' }; },
-  async signIn() { return { ok: true }; },
-  async signOut() { return { ok: true }; },
-  async load() {
-    // merge so a partial or older snapshot still boots with sane defaults
-    const stored = read(LOCAL_KEY, {});
-    const base = emptyData();
-    return {
-      ...base, ...stored,
-      settings: { ...base.settings, ...(stored.settings ?? {}) },
-      week: stored.week?.length ? stored.week : base.week,
-      bag:  stored.bag?.length  ? stored.bag  : base.bag
-    };
-  },
-  async save(data) { write(LOCAL_KEY, data); }
-};
+/* -------------------------------- outbox -------------------------------- */
+
+let outbox = read(OUTBOX_KEY, []);
+const saveOutbox = () => write(OUTBOX_KEY, outbox);
+
+export const pending = () => outbox.length;
+export const online  = () => navigator.onLine !== false;
+
+let listeners = [];
+export const onSyncChange = fn => listeners.push(fn);
+const announce = () => listeners.forEach(fn => fn({ pending: outbox.length, online: online() }));
 
 /* ------------------------------ supabase -------------------------------- */
 
@@ -74,6 +71,9 @@ async function uid() {
   const { data } = await (await client()).auth.getUser();
   return data.user?.id;
 }
+
+// Every call throws on failure so the outbox knows to hold on to the change.
+const check = ({ error }) => { if (error) throw new Error(error.message); };
 
 const remote = {
   async session() {
@@ -96,6 +96,7 @@ const remote = {
       db.from('notes').select('*').order('created_at', { ascending: false }),
       db.from('bag_items').select('*').order('position')
     ]);
+    [weights, measurements, week, notes, bag].forEach(check);
 
     const data = {
       settings: settings.data ?? { ...DEFAULT_SETTINGS },
@@ -108,7 +109,7 @@ const remote = {
       bag: bag.data?.length ? bag.data : DEFAULT_BAG.map(b => ({ ...b }))
     };
 
-    if (!settings.data) await db.from('settings').insert({});
+    if (!settings.data)     await db.from('settings').insert({});
     if (!week.data?.length) await db.from('week_days').insert(DEFAULT_WEEK);
     if (!bag.data?.length) {
       await db.from('bag_items').insert(DEFAULT_BAG.map(({ grp, item, position }) => ({ grp, item, position })));
@@ -118,44 +119,61 @@ const remote = {
     return data;
   },
 
-  async saveWeight(day, kg) {
-    const db = await client();
-    await db.from('weights').upsert({ day, kg }, { onConflict: 'user_id,day' });
-  },
-  async saveMeasurement(day, m) {
-    const db = await client();
-    await db.from('measurements').upsert({ day, ...m }, { onConflict: 'user_id,day' });
-  },
-  async saveWeekDay(dow, patch) {
-    const db = await client();
-    await db.from('week_days').update(patch).eq('dow', dow).eq('user_id', await uid());
-  },
-  async saveSettings(patch) {
-    const db = await client();
-    await db.from('settings').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', await uid());
-  },
-  async addNote(body) {
-    const db = await client();
-    const { data } = await db.from('notes').insert({ body }).select().single();
-    return data;
-  },
-  async deleteNote(id) {
-    const db = await client();
-    await db.from('notes').delete().eq('id', id);
-  }
+  async setWeight({ day, kg })       { const db = await client(); check(await db.from('weights').upsert({ day, kg }, { onConflict: 'user_id,day' })); },
+  async deleteWeight({ day })        { const db = await client(); check(await db.from('weights').delete().eq('day', day)); },
+  async setMeasurement({ day, values }) { const db = await client(); check(await db.from('measurements').upsert({ day, ...values }, { onConflict: 'user_id,day' })); },
+  async setWeekDay({ dow, patch })   { const db = await client(); check(await db.from('week_days').update(patch).eq('dow', dow).eq('user_id', await uid())); },
+  async setSettings({ patch })       { const db = await client(); check(await db.from('settings').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', await uid())); },
+  async addNote({ note })            { const db = await client(); check(await db.from('notes').upsert(note, { onConflict: 'id' })); },
+  async deleteNote({ id })           { const db = await client(); check(await db.from('notes').delete().eq('id', id)); }
 };
-
-/* -------------------------------- api ----------------------------------- */
-
-export const cached = () => read(CACHE_KEY, null);
 
 export const auth = REMOTE
   ? { session: remote.session, signIn: remote.signIn, signOut: remote.signOut }
-  : { session: local.session, signIn: local.signIn, signOut: local.signOut };
+  : { session: async () => ({ email: 'local' }), signIn: async () => ({ ok: true }), signOut: async () => ({ ok: true }) };
 
-// One shape for both backends: the app mutates `data` and tells us what changed.
+/* ------------------------------ syncing --------------------------------- */
+
+let flushing = false;
+
+/** Sends queued changes in order. Stops at the first failure and keeps the rest. */
+export async function flush() {
+  if (!REMOTE || flushing || !outbox.length || !online()) return false;
+  flushing = true;
+  let sent = 0;
+  try {
+    while (outbox.length) {
+      const op = outbox[0];
+      try { await remote[op.type](op.args); }
+      catch { break; }                       // still offline or rejected — try again later
+      outbox.shift();
+      saveOutbox();
+      sent++;
+    }
+  } finally {
+    flushing = false;
+    if (sent) announce();
+  }
+  return sent > 0;
+}
+
+addEventListener('online',  () => { flush(); announce(); });
+addEventListener('offline', announce);
+
+/* --------------------------------- store -------------------------------- */
+
 export function makeStore(data) {
-  const persistLocal = () => local.save(data);
+  const persist = () => write(REMOTE ? CACHE_KEY : LOCAL_KEY, data);
+
+  // Apply locally first so the UI never waits for the network.
+  const queue = async (type, args) => {
+    persist();
+    if (!REMOTE) return;
+    outbox.push({ type, args });
+    saveOutbox();
+    announce();
+    await flush();
+  };
 
   return {
     data,
@@ -163,37 +181,62 @@ export function makeStore(data) {
       const row = data.weights.find(w => w.day === day);
       if (row) row.kg = kg; else data.weights.push({ day, kg });
       data.weights.sort((a, b) => a.day.localeCompare(b.day));
-      REMOTE ? await remote.saveWeight(day, kg) : await persistLocal();
+      await queue('setWeight', { day, kg });
     },
-    async setMeasurement(day, m) {
-      const row = data.measurements.find(x => x.day === day);
-      if (row) Object.assign(row, m); else data.measurements.push({ day, ...m });
+    async deleteWeight(day) {
+      data.weights = data.weights.filter(w => w.day !== day);
+      await queue('deleteWeight', { day });
+    },
+    async setMeasurement(day, values) {
+      const row = data.measurements.find(m => m.day === day);
+      if (row) Object.assign(row, values); else data.measurements.push({ day, ...values });
       data.measurements.sort((a, b) => a.day.localeCompare(b.day));
-      REMOTE ? await remote.saveMeasurement(day, m) : await persistLocal();
+      await queue('setMeasurement', { day, values });
     },
     async setWeekDay(dow, patch) {
       Object.assign(data.week.find(d => d.dow === dow), patch);
-      REMOTE ? await remote.saveWeekDay(dow, patch) : await persistLocal();
+      await queue('setWeekDay', { dow, patch });
     },
     async setSettings(patch) {
       Object.assign(data.settings, patch);
-      REMOTE ? await remote.saveSettings(patch) : await persistLocal();
+      await queue('setSettings', { patch });
     },
     async addNote(body) {
-      const note = REMOTE
-        ? await remote.addNote(body)
-        : { id: crypto.randomUUID(), body, created_at: new Date().toISOString() };
+      const note = { id: crypto.randomUUID(), body, created_at: new Date().toISOString() };
       data.notes.unshift(note);
-      if (!REMOTE) await persistLocal();
+      await queue('addNote', { note });
       return note;
     },
     async deleteNote(id) {
       data.notes = data.notes.filter(n => n.id !== id);
-      REMOTE ? await remote.deleteNote(id) : await persistLocal();
+      await queue('deleteNote', { id });
     }
   };
 }
 
+/* --------------------------------- load --------------------------------- */
+
 export async function loadData() {
-  return REMOTE ? await remote.load() : await local.load();
+  if (!REMOTE) {
+    const stored = read(LOCAL_KEY, {});
+    const base = emptyData();
+    return {
+      ...base, ...stored,
+      settings: { ...base.settings, ...(stored.settings ?? {}) },
+      week: stored.week?.length ? stored.week : base.week,
+      bag:  stored.bag?.length  ? stored.bag  : base.bag
+    };
+  }
+
+  await flush();
+  // Unsent changes would be clobbered by a fresh read, so keep the snapshot.
+  if (outbox.length) return cached() ?? emptyData();
+
+  try {
+    return await remote.load();
+  } catch {
+    const snapshot = cached();
+    if (snapshot) return snapshot;
+    throw new Error('No connection and nothing cached yet.');
+  }
 }

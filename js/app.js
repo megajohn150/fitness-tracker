@@ -1,4 +1,4 @@
-import { auth, loadData, makeStore, cached, REMOTE } from './db.js';
+import { auth, loadData, makeStore, cached, flush, pending, online, onSyncChange, REMOTE } from './db.js';
 import * as C from './calc.js';
 
 const $  = id => document.getElementById(id);
@@ -225,7 +225,11 @@ function renderWeight() {
   $('bulkRows').innerHTML = weeks.map((week, i) => {
     const isCurrent = i === weeks.length - 1;
     return `<tr class="${isCurrent ? 'cur' : ''}"><td>${week.label}</td>` +
-      week.days.map(v => (v == null ? '<td class="mut">—</td>' : `<td>${v.toFixed(2)}</td>`)).join('') +
+      week.days.map((v, k) => {
+        const day = C.isoOf(C.addDays(C.parseISO(week.monday), k));
+        if (day > todayISO) return '<td class="mut">—</td>';        // nothing to log yet
+        return `<td contenteditable data-day="${day}">${v == null ? '—' : v.toFixed(2)}</td>`;
+      }).join('') +
       `<td><b>${week.avg?.toFixed(2) ?? '—'}</b></td></tr>`;
   }).join('') || '<tr><td colspan="7" class="mut">No entries yet</td></tr>';
 
@@ -369,6 +373,19 @@ function renderSettings() {
   $('setSleep').value = sleepTime();
   $('setStorage').textContent = REMOTE ? 'Supabase' : 'This device';
   $('signOutBtn').classList.toggle('hide', !REMOTE);
+  renderSync();
+}
+
+/** Only speaks up when something is actually waiting or the network is gone. */
+function renderSync() {
+  const waiting = pending();
+  const pill = $('syncPill');
+  const text = !online() ? (waiting ? `Offline · ${waiting} to sync` : 'Offline')
+             : waiting  ? `${waiting} to sync` : '';
+  pill.textContent = text;
+  pill.classList.toggle('hide', !text);
+  const storage = $('setStorage');
+  if (storage && REMOTE) storage.textContent = text ? `Supabase · ${text.toLowerCase()}` : 'Supabase · synced';
 }
 
 /* ------------------------------ calculator ------------------------------ */
@@ -489,6 +506,17 @@ function wire() {
     updateTotals();
   });
 
+  // a weight cell in the Bulk table
+  document.addEventListener('focusout', async e => {
+    const day = e.target.dataset?.day;
+    if (!day) return;
+    const text = e.target.textContent.trim().replace(',', '.');
+    const value = parseFloat(text);
+    if (!text || text === '—') await store.deleteWeight(day);
+    else if (value >= 20 && value <= 400) await store.setWeight(day, Math.round(value * 100) / 100);
+    renderWeight();                      // also reverts anything unparseable
+  });
+
   document.addEventListener('focusout', async e => {
     const key = e.target.dataset?.key;
     if (!key) return;
@@ -501,6 +529,20 @@ function wire() {
     }
     await store.setWeekDay(dow, { [key]: day[key] });
   });
+}
+
+function watchSync() {
+  let wasWaiting = pending() > 0;
+  onSyncChange(async ({ pending: waiting, online: up }) => {
+    renderSync();
+    if (wasWaiting && !waiting && up) toast('Synced');
+    wasWaiting = waiting > 0;
+    if (!waiting && up && REMOTE) {
+      try { store = makeStore(await loadData()); renderAll(); } catch { /* keep what we have */ }
+    }
+  });
+  addEventListener('online', () => { renderSync(); flush(); });
+  addEventListener('offline', renderSync);
 }
 
 /* ---------------------------------- boot -------------------------------- */
@@ -520,6 +562,7 @@ function showAuth() {
 async function start(data) {
   store = makeStore(data);
   renderAll();
+  renderSync();
   go('today');
 }
 
@@ -529,13 +572,22 @@ async function init() {
   wire();
   setupCalculator();
 
+  watchSync();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => { /* http only, fine */ });
+  }
+
   const user = await auth.session();
   if (!user) { showAuth(); return; }
 
   showApp();
   const snapshot = cached();
   if (snapshot) await start(snapshot);     // instant paint from the last sync
-  await start(await loadData());
+  try {
+    await start(await loadData());
+  } catch {
+    if (!snapshot) toast('No connection, and nothing saved on this device yet.');
+  }
 }
 
 $('authForm').onsubmit = async e => {

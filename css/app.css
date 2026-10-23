@@ -43,6 +43,8 @@ h1{font-family:var(--fd);font-weight:400;font-size:28px;line-height:1.12;letter-
 .pill{font-size:11px;letter-spacing:.04em;color:var(--ink-2);border:1px solid var(--line);
   border-radius:99px;padding:3px 9px;white-space:nowrap}
 .up{color:var(--warn)}.dn{color:var(--good)}
+.pill.sync{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 30%,transparent);
+  background:color-mix(in srgb,var(--warn) 8%,transparent)}
 .pill.up{border-color:color-mix(in srgb,var(--warn) 30%,transparent);
   background:color-mix(in srgb,var(--warn) 8%,transparent)}
 .track{height:3px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:11px}
