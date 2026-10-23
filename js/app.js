@@ -450,8 +450,7 @@ function updateTotals() {
   $('aSteps').textContent = (steps / 1000).toFixed(steps % 1000 ? 1 : 0) + 'k';
   $('aEat').textContent = sp(eat / 7);
   $('aSurplus').textContent = sign(eat - maint);
-  $('energyRate').textContent = `${sign(eat - maint)} kcal over the week is about ` +
-    `${weeklyKg(eat - maint)} kg — counting ${sp(C.KCAL_PER_KG)} kcal to a kilo.`;
+  $('energyRate').textContent = `${sign(eat - maint)} ≈ ${weeklyKg(eat - maint)} kg`;
   $('energyTot').innerHTML = `<tr class="tot"><td>Total</td><td>${sp(maint)}</td><td>${sp(eat)}</td><td>${sign(eat - maint)}</td></tr>`;
   $$('#energyRows tr').forEach(tr => {
     const dow = Number(tr.querySelector('[data-dow]').dataset.dow);
