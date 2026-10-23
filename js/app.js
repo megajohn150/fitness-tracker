@@ -9,6 +9,7 @@ const sp     = n => Math.round(n).toLocaleString('en-US').replace(/,/g, ' ');
 const num    = t => { const v = parseFloat(String(t).replace(/[^\d.-]/g, '')); return Number.isNaN(v) ? 0 : v; };
 const sign   = n => (n < 0 ? '−' : '+') + sp(Math.abs(n));
 const signKg = n => (n < 0 ? '−' : '+') + Math.abs(n).toFixed(2);
+const decimal = v => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
 const weeklyKg = kcal => `${kcal < 0 ? '−' : '+'}${Math.abs(kcal / C.KCAL_PER_KG).toFixed(2)}`;
 
 let store = null;
@@ -81,7 +82,12 @@ function phaseList() {
   return phases.map((p, i) => ({ ...p, ends_on: phases[i + 1]?.started_on ?? null }));
 }
 
-const currentPhase = () => phaseList().at(-1) ?? { label: 'Bulk', started_on: null, ends_on: null };
+/** The phase that has actually started — one dated next Monday is not it yet. */
+const currentPhase = () => {
+  const phases = phaseList();
+  const begun = phases.filter(p => p.started_on <= C.today());
+  return begun.at(-1) ?? phases[0] ?? { label: 'Bulk', started_on: null, ends_on: null };
+};
 
 function phaseWeeks(phase) {
   return C.weeklyWeights(store.data.weights, phase.started_on, phase.ends_on);
@@ -125,8 +131,10 @@ function openSheet({ title, sub = '', fields, action = 'Save' }) {
       <p class="lab">${f.label}</p>
       ${f.type === 'textarea'
         ? `<textarea class="field" name="${f.key}" rows="3" style="font-size:17px;line-height:1.45;resize:none">${f.value ?? ''}</textarea>`
-        : `<input class="field" name="${f.key}" type="${f.type ?? 'text'}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}"
-             value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}" ${f.step ? `step="${f.step}"` : ''}>`}
+        : `<input class="field" name="${f.key}"
+             type="${f.type === 'number' ? 'text' : f.type ?? 'text'}"
+             inputmode="${f.type === 'number' ? 'decimal' : 'text'}"
+             value="${f.value ?? ''}" placeholder="${f.placeholder ?? ''}">`}
     </div>`).join('');
   $('sheetSave').textContent = action;
   $('sheetFields').style.flexDirection =
@@ -206,24 +214,25 @@ function weekSpark(id, days) {
 }
 
 /** Several series on one scale — only comparable because they are all deltas. */
-function multiSpark(id, series) {
+function multiSpark(id, series, count) {
   const el = $(id);
   const w = 300, h = 96, pad = 10;
   el.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  const all = series.flatMap(s => s.values);
+  const all = series.flatMap(s => s.points.map(p => p.v));
   if (all.length < 2) { el.innerHTML = ''; return; }
 
   const span = Math.max(0.6, Math.max(...all.map(Math.abs)) * 2.2);
-  const X = (i, n) => (n < 2 ? w / 2 : i * (w / (n - 1)));
+  const X = i => (count < 2 ? w / 2 : i * (w / (count - 1)));
   const Y = v => pad + (0.5 - v / span) * (h - 2 * pad);
 
   el.innerHTML =
     `<line class="zero" x1="0" y1="${Y(0).toFixed(1)}" x2="${w}" y2="${Y(0).toFixed(1)}"/>` +
     series.map((s, k) => {
-      const points = s.values.map((v, i) => `${X(i, s.values.length).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+      const points = s.points.map(p => `${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(' ');
       const cls = ['s1', 's2', 's3'][k] ?? 's1';
+      const end = s.points.at(-1);
       return `<polyline class="${cls}" points="${points}"/>` +
-             `<circle class="dot" style="fill:var(${s.color})" cx="${X(s.values.length - 1, s.values.length)}" cy="${Y(s.values.at(-1))}" r="2.6"/>`;
+             `<circle class="dot" style="fill:var(${s.color})" cx="${X(end.i)}" cy="${Y(end.v)}" r="2.6"/>`;
     }).join('');
 }
 
@@ -254,7 +263,9 @@ function renderWeight() {
   const todayEntry = weights.find(w => w.day === todayISO);
   const current = weeks.at(-1) ?? { days: [null, null, null, null, null], avg: null };
   const shown = C.displayWeek(weeks) ?? current;
-  const previous = weeks.at(-2);
+  // The comparison has to follow whichever week is on screen, or a weekend with
+  // nothing logged compares last week against itself and reads +0.00.
+  const previous = weeks[weeks.indexOf(shown) - 1];
   const delta = shown.avg != null && previous?.avg != null ? shown.avg - previous.avg : null;
 
   // Today card
@@ -268,8 +279,10 @@ function renderWeight() {
     $('wDays').textContent = `${shown.days.filter(d => d != null).length} of 5 days`;
   } else {
     const last = weights.at(-1);
+    const thisWeek = C.isoOf(C.mondayOf(new Date()));
     $('wLast').textContent = last
-      ? `Not logged today · last ${last.kg.toFixed(2)} on ${C.DAY_NAMES[C.dowOf(C.parseISO(last.day))]}`
+      ? `Not logged today · last ${last.kg.toFixed(2)} on ` +
+        (last.day >= thisWeek ? C.DAY_NAMES[C.dowOf(C.parseISO(last.day))] : C.shortDate(last.day))
       : 'Nothing logged yet';
   }
   $('wPill').classList.toggle('hide', delta == null);
@@ -331,15 +344,20 @@ function renderBodyTrend() {
     { key: 'quad',   label: 'Quad',   color: '--c2' },
     { key: 'waist',  label: 'Waist',  color: '--c3' }
   ];
-  const series = metrics.map(m => ({
-    ...m,
-    values: measurements.map(x => Number(x[m.key]) - Number(measurements[0][m.key]))
-  }));
+  const series = metrics.map(m => {
+    const taken = measurements
+      .map((x, i) => ({ i, value: x[m.key] == null ? null : Number(x[m.key]) }))
+      .filter(p => p.value != null);
+    const base = taken[0]?.value;
+    return { ...m, points: taken.map(p => ({ i: p.i, v: p.value - base })) };
+  }).filter(s => s.points.length > 1);
 
-  multiSpark('spBody', series);
+  if (!series.length) { card.classList.add('hide'); return; }
+
+  multiSpark('spBody', series, measurements.length);
   $('trendFrom').textContent = `from ${C.shortDate(measurements[0].day)}`;
   $('bodyLegend').innerHTML = series.map(s =>
-    `<span><i style="background:var(${s.color})"></i>${s.label} ${signCm(s.values.at(-1))}</span>`).join('');
+    `<span><i style="background:var(${s.color})"></i>${s.label} ${signCm(s.points.at(-1).v)}</span>`).join('');
 }
 
 const signCm = n => `${n < 0 ? '−' : '+'}${Math.abs(n).toFixed(1)} cm`;
@@ -432,7 +450,7 @@ function renderActivity() {
   const cell = (dow, key, value) => `<td contenteditable data-dow="${dow}" data-key="${key}">${value}</td>`;
 
   $('planRows').innerHTML = week.map(d => `<tr class="${d.dow === todayIndex ? 'cur' : ''}"><td>${C.DAY_NAMES[d.dow]}</td>` +
-    cell(d.dow, 'steps', sp(d.steps)) + cell(d.dow, 'session', d.session || '—') + '</tr>').join('');
+    cell(d.dow, 'steps', sp(d.steps)) + cell(d.dow, 'session', escapeHtml(d.session || '—')) + '</tr>').join('');
 
   $('energyRows').innerHTML = week.map(d => `<tr class="${d.dow === todayIndex ? 'cur' : ''}"><td>${C.DAY_NAMES[d.dow]}</td>` +
     cell(d.dow, 'maintenance', sp(d.maintenance)) + cell(d.dow, 'eat', sp(d.eat)) +
@@ -649,7 +667,7 @@ function renderReview() {
 
 /** Spreads a weekly change over the seven days without drifting off the total. */
 async function applyAdjustment(total, monday) {
-  const amount = Number(total);
+  const amount = Math.round(Number(total));
   const plan = store.data.week.slice().sort((a, b) => a.dow - b.dow);
   let allocated = 0;
   for (let i = 0; i < plan.length; i++) {
@@ -743,8 +761,9 @@ async function logWeight() {
     sub: new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
     fields: [{ key: 'kg', label: 'Weight (kg)', type: 'number', step: '0.05', value: existing?.kg ?? '' }]
   });
-  if (!result?.kg) return;
-  await store.setWeight(todayISO, Number(result.kg));
+  const kg = decimal(result?.kg);
+  if (kg == null) return;
+  await store.setWeight(todayISO, kg);
   renderWeight();
   toast('Weight saved');
 }
@@ -761,11 +780,12 @@ async function addMeasurement() {
     ]
   });
   if (!result) return;
-  await store.setMeasurement(C.today(), {
-    biceps: Number(result.biceps) || null,
-    quad:   Number(result.quad)   || null,
-    waist:  Number(result.waist)  || null
-  });
+  const values = {
+    biceps: decimal(result.biceps), quad: decimal(result.quad), waist: decimal(result.waist)
+  };
+  // An all-empty row would sit in the table forever and drag the chart to zero.
+  if (Object.values(values).every(v => v == null)) return;
+  await store.setMeasurement(C.today(), values);
   renderBody();
   toast('Measurement saved');
 }
@@ -862,7 +882,8 @@ function wire() {
       fields: [{ key: 'amount', label: 'Kcal for the week', type: 'number', step: '50', value: amount }],
       action: 'Apply'
     });
-    if (result?.amount) await applyAdjustment(result.amount, monday);
+    const kcal = decimal(result?.amount);
+    if (kcal) await applyAdjustment(kcal, monday);
   };
   $('syncRetry').onclick = () => retrySync();
   $('syncDiscard').onclick = async () => { await discardBlocked(); renderSync(); toast('Change discarded'); };
@@ -920,15 +941,22 @@ function wire() {
   });
 }
 
+const isEditing = () => {
+  const el = document.activeElement;
+  return Boolean(el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)));
+};
+
 function watchSync() {
   let wasWaiting = pending() > 0;
   onSyncChange(async ({ pending: waiting, online: up }) => {
     renderSync();
-    if (wasWaiting && !waiting && up) toast('Synced');
+    const drained = wasWaiting && !waiting && up;
     wasWaiting = waiting > 0;
-    if (!waiting && up && REMOTE) {
-      try { store = makeStore(await loadData()); renderAll(); } catch { /* keep what we have */ }
-    }
+    // Re-reading the server after every single save would cost a round trip per
+    // keystroke and rebuild the table under the cursor.
+    if (!drained || !REMOTE || isEditing()) return;
+    toast('Synced');
+    try { store = makeStore(await loadData()); renderAll(); } catch { /* keep what we have */ }
   });
   addEventListener('online', () => { renderSync(); flush(); });
   addEventListener('offline', renderSync);

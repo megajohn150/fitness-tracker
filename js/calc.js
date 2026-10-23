@@ -31,7 +31,7 @@ export function weeklyWeights(weights, phaseStart, phaseEnd) {
   if (!weights.length) return [];
   const first = mondayOf(phaseStart || weights[0].day);
   const today = mondayOf(new Date());
-  const last  = phaseEnd ? mondayOf(addDays(parseISO(phaseEnd), -1)) : today;
+  const last  = phaseEnd ? addDays(mondayOf(phaseEnd), -7) : today;
   if (last < first) return [];
   const byDay = new Map(weights.map(w => [w.day, Number(w.kg)]));
   const weeks = [];
