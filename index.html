@@ -46,8 +46,8 @@
 <!-- TODAY -->
 <section class="view on" id="v-today">
   <button class="btn pri cta hide" id="mondayCta">
-    <b>Add measurements</b>
-    <small>Monday · biceps, quad, waist</small>
+    <b>Weekly review</b>
+    <small>Monday · last week, measurements, calories</small>
   </button>
 
   <div class="card">
@@ -138,6 +138,12 @@
   <div class="g3" id="bodyNow"></div>
   <p class="mut" style="margin-top:10px" id="bodyNext"></p>
 
+  <div class="card" id="bodyTrend">
+    <div class="sec" style="margin:0 0 10px"><h2>Change since start</h2><em id="trendFrom"></em></div>
+    <svg class="spark multi" viewBox="0 0 300 96" preserveAspectRatio="none" id="spBody" style="height:96px"></svg>
+    <div class="legend" id="bodyLegend"></div>
+  </div>
+
   <div class="sec"><h2>Measurements</h2><em>every Monday</em></div>
   <div class="card">
     <div class="scroll"><table>
@@ -177,6 +183,7 @@
 <!-- MORE -->
 <section class="view" id="v-more">
   <div class="card">
+    <button class="nav" data-go="review"><span>Weekly review<small>Last week, and what to change</small></span></button>
     <button class="nav" data-go="caffeine"><span>Caffeine<small>Limit by time to sleep</small></span></button>
     <button class="nav" data-go="bag"><span>Gym bag<small>What goes in, by group</small></span></button>
     <button class="nav" data-go="notes"><span>Notes<small>Rules &amp; observations</small></span></button>
@@ -199,6 +206,39 @@
   </div>
 
   <button class="btn hide" id="signOutBtn">Sign out</button>
+</section>
+
+<!-- WEEKLY REVIEW -->
+<section class="view" id="v-review">
+  <div class="card">
+    <p class="lab" id="revRange">—</p>
+    <div style="display:flex;align-items:flex-end;gap:12px;margin-top:6px">
+      <div style="flex:1"><div class="num n1"><b id="revAvg">—</b><span class="unit"> kg</span></div></div>
+      <span class="pill up hide" id="revDelta"></span>
+    </div>
+    <p class="mut" style="margin-top:8px" id="revDays"></p>
+  </div>
+
+  <div class="card" id="revVerdict">
+    <p class="lab" id="revVerdictLab"></p>
+    <p class="note" style="margin-top:6px" id="revVerdictText"></p>
+    <button class="btn pri" id="revApplyBtn">Apply to the week</button>
+    <p class="mut" style="margin-top:9px" id="revApplied"></p>
+  </div>
+
+  <div class="sec"><h2>Week plan after this</h2><em id="revSurplus"></em></div>
+  <div class="card">
+    <div class="scroll"><table>
+      <thead><tr><th>Day</th><th>Maint.</th><th>Eat</th><th>Diff</th></tr></thead>
+      <tbody id="revRows"></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec"><h2>Measurements</h2><em id="revMeasureWhen"></em></div>
+  <div class="card">
+    <div id="revMeasureBody"></div>
+    <button class="btn pri" id="revMeasureBtn">Add this week’s measurement</button>
+  </div>
 </section>
 
 <!-- CAFFEINE -->

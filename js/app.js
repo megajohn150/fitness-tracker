@@ -23,7 +23,8 @@ const VIEWS = {
   caffeine: { title: 'Caffeine', sub: true },
   bag:      { title: 'Gym bag',  sub: true },
   notes:    { title: 'Notes',    sub: true },
-  calc:     { title: 'Calculator', sub: true }
+  calc:     { title: 'Calculator', sub: true },
+  review:   { title: 'Weekly review', sub: true }
 };
 
 let lastTab = 'today';
@@ -61,6 +62,7 @@ function subtitleFor(name) {
     case 'bag':      return d ? `${d.bag.length} items` : '';
     case 'notes':    return d ? `${d.notes.length} in the journal` : '';
     case 'calc':     return 'Steps · minutes · kcal';
+    case 'review':   return 'The week that just ended';
     default:         return 'Tools & settings';
   }
 }
@@ -202,6 +204,28 @@ function weekSpark(id, days) {
   renderDayLabels(days, lastIndex);
 }
 
+/** Several series on one scale — only comparable because they are all deltas. */
+function multiSpark(id, series) {
+  const el = $(id);
+  const w = 300, h = 96, pad = 10;
+  el.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  const all = series.flatMap(s => s.values);
+  if (all.length < 2) { el.innerHTML = ''; return; }
+
+  const span = Math.max(0.6, Math.max(...all.map(Math.abs)) * 2.2);
+  const X = (i, n) => (n < 2 ? w / 2 : i * (w / (n - 1)));
+  const Y = v => pad + (0.5 - v / span) * (h - 2 * pad);
+
+  el.innerHTML =
+    `<line class="zero" x1="0" y1="${Y(0).toFixed(1)}" x2="${w}" y2="${Y(0).toFixed(1)}"/>` +
+    series.map((s, k) => {
+      const points = s.values.map((v, i) => `${X(i, s.values.length).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+      const cls = ['ln', 'ln2', 'ln3'][k] ?? 'ln';
+      return `<polyline class="${cls}" points="${points}"/>` +
+             `<circle class="dot" style="fill:var(${s.color})" cx="${X(s.values.length - 1, s.values.length)}" cy="${Y(s.values.at(-1))}" r="2.6"/>`;
+    }).join('');
+}
+
 function renderDayLabels(days, lastIndex) {
   $('days').innerHTML = C.DAY_NAMES.slice(0, 5)
     .map((d, i) => `<span class="${days[i] == null ? '' : i === lastIndex ? 'now' : 'has'}">${d}</span>`).join('');
@@ -216,6 +240,7 @@ function renderAll() {
   renderBag();
   renderNotes();
   renderCaffeine();
+  renderReview();
   renderSettings();
   $('sub').textContent = subtitleFor(lastTab);
 }
@@ -294,6 +319,30 @@ function renderWeight() {
   } else hint.classList.add('hide');
 }
 
+function renderBodyTrend() {
+  const measurements = store.data.measurements;
+  const card = $('bodyTrend');
+  if (measurements.length < 2) { card.classList.add('hide'); return; }
+  card.classList.remove('hide');
+
+  const metrics = [
+    { key: 'biceps', label: 'Biceps', color: '--accent' },
+    { key: 'quad',   label: 'Quad',   color: '--good' },
+    { key: 'waist',  label: 'Waist',  color: '--warn' }
+  ];
+  const series = metrics.map(m => ({
+    ...m,
+    values: measurements.map(x => Number(x[m.key]) - Number(measurements[0][m.key]))
+  }));
+
+  multiSpark('spBody', series);
+  $('trendFrom').textContent = `from ${C.shortDate(measurements[0].day)}`;
+  $('bodyLegend').innerHTML = series.map(s =>
+    `<span><i style="background:var(${s.color})"></i>${s.label} ${signCm(s.values.at(-1))}</span>`).join('');
+}
+
+const signCm = n => `${n < 0 ? '−' : '+'}${Math.abs(n).toFixed(1)} cm`;
+
 function renderPhases() {
   const phases = phaseList();
   $('phaseCount').textContent = phases.length ? `${phases.length} total` : '';
@@ -364,6 +413,8 @@ function renderBody() {
 
   const nextMonday = C.addDays(C.mondayOf(new Date()), 7);
   $('bodyNext').textContent = `Measured every Monday after waking up. Next: ${C.shortDate(C.isoOf(nextMonday))}.`;
+
+  renderBodyTrend();
 
   const loggedToday = measurements.some(m => m.day === C.today());
   $('mondayCta').classList.toggle('hide', !(C.dowOf(new Date()) === 0 && !loggedToday));
@@ -513,6 +564,96 @@ function renderSync() {
   }
 }
 
+/* ------------------------------- review --------------------------------- */
+
+/** The last week that is fully behind us — the one worth judging. */
+function reviewWeek() {
+  const weeks = phaseWeeks(currentPhase());
+  const todayISO = C.today();
+  const finished = weeks.filter(w => C.isoOf(C.addDays(C.parseISO(w.monday), 4)) < todayISO);
+  return { week: finished.at(-1) ?? null, previous: finished.at(-2) ?? null };
+}
+
+function verdictFor(delta) {
+  if (delta == null) return { lab: 'Not enough data', text: 'Two full weeks are needed before the rule says anything.', amount: 0 };
+  if (delta > 0.25)  return { lab: 'Above target', amount: -500,
+    text: `Gained ${delta.toFixed(2)} kg — more than 0.25. The rule says cut 300–600 kcal from the week.` };
+  if (delta < 0.1)   return { lab: 'Below target', amount: 500,
+    text: `${delta < 0 ? 'Lost' : 'Gained'} ${Math.abs(delta).toFixed(2)} kg — under 0.1. The rule says add 500 calories to the week.` };
+  return { lab: 'On target', amount: 0,
+    text: `Gained ${delta.toFixed(2)} kg, inside the 0.1–0.25 window. Leave the week as it is.` };
+}
+
+function renderReview() {
+  const { week, previous } = reviewWeek();
+  const { settings, week: plan } = store.data;
+
+  if (!week) {
+    $('revRange').textContent = 'No finished week yet';
+    $('revAvg').textContent = '—';
+    $('revDays').textContent = 'Come back after the first Friday of this phase.';
+    $('revDelta').classList.add('hide');
+    $('revVerdict').classList.add('hide');
+  } else {
+    const delta = week.avg != null && previous?.avg != null ? week.avg - previous.avg : null;
+    const verdict = verdictFor(delta);
+    const friday = C.isoOf(C.addDays(C.parseISO(week.monday), 4));
+
+    $('revRange').textContent = `${week.label} · ${C.shortDate(week.monday)} – ${C.shortDate(friday)}`;
+    $('revAvg').textContent = week.avg?.toFixed(2) ?? '—';
+    $('revDays').textContent = `${week.days.filter(d => d != null).length} of 5 days logged` +
+      (previous?.avg != null ? ` · ${previous.label} was ${previous.avg.toFixed(2)}` : '');
+    $('revDelta').classList.toggle('hide', delta == null);
+    if (delta != null) $('revDelta').textContent = `${signKg(delta)} kg`;
+
+    $('revVerdict').classList.remove('hide');
+    $('revVerdictLab').textContent = verdict.lab;
+    $('revVerdictText').textContent = verdict.text;
+
+    const done = settings.adjusted_week === week.monday;
+    const button = $('revApplyBtn');
+    button.classList.toggle('hide', !verdict.amount);
+    button.textContent = `${verdict.amount < 0 ? 'Cut' : 'Add'} ${Math.abs(verdict.amount)} kcal across the week`;
+    button.dataset.amount = verdict.amount;
+    button.dataset.monday = week.monday;
+    $('revApplied').textContent = done
+      ? `Already applied ${sign(settings.adjusted_kcal ?? 0)} kcal for this week.` : '';
+  }
+
+  const eat = plan.reduce((a, d) => a + d.eat, 0);
+  const maint = plan.reduce((a, d) => a + d.maintenance, 0);
+  $('revSurplus').textContent = `${sign(eat - maint)} kcal / wk`;
+  $('revRows').innerHTML = plan.map(d =>
+    `<tr><td>${C.DAY_NAMES[d.dow]}</td><td>${sp(d.maintenance)}</td><td>${sp(d.eat)}</td>` +
+    `<td class="diff">${sign(d.eat - d.maintenance)}</td></tr>`).join('');
+
+  const monday = C.isoOf(C.mondayOf(new Date()));
+  const taken = store.data.measurements.find(m => m.day >= monday);
+  $('revMeasureWhen').textContent = taken ? `done ${C.shortDate(taken.day)}` : 'not taken yet';
+  $('revMeasureBody').innerHTML = taken
+    ? ['biceps', 'quad', 'waist'].map(k =>
+        `<div class="row"><span class="k">${k[0].toUpperCase() + k.slice(1)}</span>` +
+        `<span class="v">${taken[k] != null ? Number(taken[k]).toFixed(1) : '—'} cm</span></div>`).join('')
+    : '<p class="mut">Biceps, quad and waist — Monday, after waking up.</p>';
+  $('revMeasureBtn').classList.toggle('hide', Boolean(taken));
+}
+
+/** Spreads a weekly change over the seven days without drifting off the total. */
+async function applyAdjustment(total, monday) {
+  const amount = Number(total);
+  const plan = store.data.week.slice().sort((a, b) => a.dow - b.dow);
+  let allocated = 0;
+  for (let i = 0; i < plan.length; i++) {
+    const share = Math.round((amount * (i + 1)) / plan.length) - allocated;
+    allocated += share;
+    await store.setWeekDay(plan[i].dow, { eat: plan[i].eat + share });
+  }
+  await store.setSettings({ adjusted_week: monday, adjusted_kcal: amount });
+  renderActivity();
+  renderReview();
+  toast(`${sign(amount)} kcal spread over the week`);
+}
+
 /* ------------------------------ calculator ------------------------------ */
 
 function setupCalculator() {
@@ -659,9 +800,21 @@ function wire() {
   $('logWeightBtn2').onclick = logWeight;
   $('addMeasureBtn').onclick = addMeasurement;
   $('addNoteBtn').onclick = addNote;
-  $('mondayCta').onclick = addMeasurement;
+  $('mondayCta').onclick = () => go('review');
   $('signOutBtn').onclick = async () => { await auth.signOut(); location.reload(); };
   $('newPhaseBtn').onclick = newPhase;
+  $('revMeasureBtn').onclick = addMeasurement;
+  $('revApplyBtn').onclick = async e => {
+    const { amount, monday } = e.target.dataset;
+    const already = store.data.settings.adjusted_week === monday;
+    const result = await openSheet({
+      title: Number(amount) < 0 ? 'Cut calories' : 'Add calories',
+      sub: already ? 'This week was already adjusted once.' : 'Spread evenly across all seven days.',
+      fields: [{ key: 'amount', label: 'Kcal for the week', type: 'number', step: '50', value: amount }],
+      action: 'Apply'
+    });
+    if (result?.amount) await applyAdjustment(result.amount, monday);
+  };
   $('syncRetry').onclick = () => retrySync();
   $('syncDiscard').onclick = async () => { await discardBlocked(); renderSync(); toast('Change discarded'); };
 
