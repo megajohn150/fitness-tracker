@@ -4,7 +4,7 @@
 // Safari refuses to serve a redirected response for a navigation, and Pages
 // redirects /index.html to /, so every cached response is rebuilt without its
 // redirect history before it is stored.
-const VERSION = 'gym-v3';
+const VERSION = 'gym-v4';
 const ROOT = './';
 const SHELL = [
   ROOT, './css/app.css', './manifest.webmanifest',
@@ -63,10 +63,28 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Everything else: serve from cache, refresh in the background.
+  // Our own code must match the page that asked for it, so it is fetched fresh
+  // when there is a network and only falls back to the cache offline. Serving a
+  // stale script next to a new page is how you get a half-working app.
+  if (url.origin === self.location.origin) {
+    event.respondWith((async () => {
+      const cache = await caches.open(VERSION);
+      try {
+        const response = await plain(await fetch(request));
+        if (response.ok) cache.put(request, response.clone());
+        return response;
+      } catch {
+        return (await cache.match(request, { ignoreSearch: true })) ?? Response.error();
+      }
+    })());
+    return;
+  }
+
+  // Third-party files (fonts, the Supabase client) never change under the same
+  // URL, so cache them hard and refresh in the background.
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
-    const hit = await cache.match(request, { ignoreSearch: url.origin === self.location.origin });
+    const hit = await cache.match(request);
     const fetching = fetch(request)
       .then(async response => {
         if (response.ok) cache.put(request, (await plain(response.clone())));
