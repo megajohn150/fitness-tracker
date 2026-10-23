@@ -123,6 +123,13 @@ td.del button:active{color:var(--warn)}
 .field::-webkit-outer-spin-button,.field::-webkit-inner-spin-button{appearance:none;margin:0}
 .field[type=number]{appearance:textfield}
 .field.time{width:auto;margin-top:7px;padding-bottom:7px}
+.steps{padding:13px 16px}
+.steps .line{display:flex;align-items:baseline;gap:9px;margin-top:4px}
+.steps .field{font-size:26px;width:4.4em;padding-bottom:3px;flex:none}
+.steps .mut{white-space:nowrap}
+.linkbtn{margin-left:auto;background:none;border:0;padding:0;font:inherit;font-size:13px;
+  color:var(--accent);cursor:pointer;white-space:nowrap}
+.linkbtn:disabled{color:var(--ink-3);cursor:default}
 .sel{width:100%;font:inherit;font-size:15px;color:var(--ink);background:transparent;
   border:1px solid var(--line);border-radius:10px;padding:10px 30px 10px 11px;margin-top:7px;
   appearance:none;cursor:pointer;background-repeat:no-repeat;background-position:right 11px center;background-size:9px;

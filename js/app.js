@@ -700,10 +700,9 @@ function renderStepsLeft() {
   const done = num($('stepsNow').value);
   const left = Math.max(0, goal - done);
 
-  $('stepsGoal').textContent = sp(goal);
-  $('stepsLeft').textContent = done ? (left ? sp(left) : 'goal reached') : '—';
+  $('stepsGoal').textContent = `/ ${sp(goal)}`;
   $('useLeftBtn').disabled = !left;
-  $('useLeftBtn').textContent = left ? `Convert ${sp(left)} steps` : 'Nothing left to convert';
+  $('useLeftBtn').textContent = !done ? `${sp(goal)} to go ›` : left ? `Convert ${sp(left)} ›` : 'Goal reached';
   return left;
 }
 

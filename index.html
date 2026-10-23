@@ -286,12 +286,13 @@
 
 <!-- CALCULATOR -->
 <section class="view" id="v-calc">
-  <div class="card">
-    <p class="lab">Steps so far today</p>
-    <input class="field" id="stepsNow" inputmode="numeric" placeholder="0" aria-label="Steps so far today">
-    <div class="row" style="padding-top:14px"><span class="k">Goal</span><span class="v" id="stepsGoal">—</span></div>
-    <div class="row"><span class="k">Left</span><span class="v" id="stepsLeft">—</span></div>
-    <button class="btn pri" id="useLeftBtn">Convert what’s left</button>
+  <div class="card steps">
+    <p class="lab">Steps today</p>
+    <div class="line">
+      <input class="field" id="stepsNow" inputmode="numeric" placeholder="0" aria-label="Steps so far today">
+      <span class="mut" id="stepsGoal"></span>
+      <button class="linkbtn" id="useLeftBtn"></button>
+    </div>
   </div>
 
   <div class="sec"><h2>Convert</h2></div>
