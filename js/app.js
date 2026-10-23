@@ -485,27 +485,94 @@ function updateTotals() {
   $('tDayLabel').textContent = `${C.LONG_DAYS[today.dow]} target`;
 }
 
+/* The Today list is a daily checklist: ticked items drop to the bottom of their
+   own group and the whole thing clears itself overnight. It lives on the device
+   — it says nothing about the week, only about this morning. */
+const BAG_STATE_KEY = 'gym.bag.today';
+let bagChecked = null;
+
+function defaultChecked() {
+  return new Set(store.data.bag.filter(b => b.grp === BAG_GROUPS[2]).map(b => String(b.id)));
+}
+
+function loadBagState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BAG_STATE_KEY));
+    if (saved?.day === C.today()) return new Set(saved.ids.map(String));
+  } catch { /* private mode */ }
+  return defaultChecked();
+}
+
+function saveBagState() {
+  try {
+    localStorage.setItem(BAG_STATE_KEY, JSON.stringify({ day: C.today(), ids: [...bagChecked] }));
+  } catch { /* private mode */ }
+}
+
 function renderBag() {
   const items = store.data.bag.slice().sort((a, b) => a.position - b.position);
-  const groupsWith = grp => items.filter(i => i.grp === grp);
+  const inGroup = grp => items.filter(i => i.grp === grp);
 
-  // Today only glances at the list, so it stays plain text.
-  $('bagToday').innerHTML = BAG_GROUPS
-    .filter(grp => groupsWith(grp).length)
-    .map(grp => `<div class="bg"><h3>${grp}</h3><ul>` +
-      groupsWith(grp).map(i => `<li>${escapeHtml(i.item)}</li>`).join('') + '</ul></div>').join('');
+  if (!bagChecked) bagChecked = loadBagState();
+  const ids = new Set(items.map(i => String(i.id)));
+  [...bagChecked].forEach(id => { if (!ids.has(id)) bagChecked.delete(id); });   // item was removed
 
+  // Today — tappable, ticked items sink within their group
+  $('bagToday').innerHTML = BAG_GROUPS.filter(g => inGroup(g).length).map(g => {
+    const rows = inGroup(g).slice().sort((a, b) =>
+      (bagChecked.has(String(a.id)) - bagChecked.has(String(b.id))) || a.position - b.position);
+    return `<div class="bg"><h3>${g}</h3><ul>` + rows.map(i =>
+      `<li class="${bagChecked.has(String(i.id)) ? 'done' : ''}" data-check="${i.id}" data-pos="${i.position}">` +
+      `<span>${escapeHtml(i.item)}</span></li>`).join('') + '</ul></div>';
+  }).join('');
+
+  // More — the preset behind it
   $('bagFull').innerHTML = BAG_GROUPS.map(grp => `
     <div class="bg">
       <h3>${grp}</h3>
-      <ul>${groupsWith(grp).map(i => `
+      <ul>${inGroup(grp).map(i => `
         <li><span contenteditable data-bag="${i.id}">${escapeHtml(i.item)}</span>
             <button data-del-bag="${i.id}" aria-label="Remove ${escapeHtml(i.item)}">×</button></li>`).join('')}
       </ul>
       <button class="add" data-add-bag="${grp}">+ Add item</button>
     </div>`).join('');
 
-  $('bagCount').textContent = `${items.length} items`;
+  updateBagCount(items.length);
+}
+
+const updateBagCount = total =>
+  $('bagCount').textContent = `${bagChecked.size} / ${total ?? store.data.bag.length}`;
+
+/** Tick, then slide the row to the bottom of its own group. */
+function toggleBagItem(id) {
+  const row = document.querySelector(`#bagToday [data-check="${CSS.escape(id)}"]`);
+  if (!row) return;
+  const list = row.parentElement;
+  const rows = [...list.children];
+  const before = new Map(rows.map(el => [el, el.getBoundingClientRect().top]));
+
+  bagChecked.has(id) ? bagChecked.delete(id) : bagChecked.add(id);
+  saveBagState();
+  row.classList.toggle('done');
+
+  rows.slice()
+    .sort((a, b) => (a.classList.contains('done') - b.classList.contains('done')) ||
+                    (Number(a.dataset.pos) - Number(b.dataset.pos)))
+    .forEach(el => list.appendChild(el));
+
+  // play the move from where each row used to be
+  rows.forEach(el => {
+    const shift = before.get(el) - el.getBoundingClientRect().top;
+    if (!shift) return;
+    el.style.transition = 'none';
+    el.style.transform = `translateY(${shift}px)`;
+    requestAnimationFrame(() => {
+      el.style.transition = '';
+      el.style.transform = '';
+    });
+  });
+
+  updateBagCount();
 }
 
 async function addBagItem(grp) {
@@ -838,6 +905,9 @@ function wire() {
 
     const phaseId = e.target.dataset.delPhase;
     if (phaseId) return deletePhase(phaseId);
+
+    const checkRow = e.target.closest('#bagToday [data-check]');
+    if (checkRow) return toggleBagItem(checkRow.dataset.check);
 
     const addGroup = e.target.dataset.addBag;
     if (addGroup) return addBagItem(addGroup);

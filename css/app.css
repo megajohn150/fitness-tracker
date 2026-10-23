@@ -95,6 +95,16 @@ td.del button:active{color:var(--warn)}
   font-family:var(--fd);font-size:17px;letter-spacing:-.01em;line-height:1.3}
 .bag li::before{content:"";width:3px;height:3px;border-radius:50%;background:var(--ink-3);flex:none}
 .bag li span{flex:1;outline:none;border-radius:5px}
+#bagToday li{cursor:pointer;padding:4px 0;transition:transform .34s cubic-bezier(.2,.7,.2,1);
+  -webkit-tap-highlight-color:transparent}
+#bagToday li span{position:relative;transition:color .25s ease}
+#bagToday li span::after{content:"";position:absolute;left:-1px;right:-1px;top:54%;height:1px;
+  background:currentColor;transform:scaleX(0);transform-origin:left;
+  transition:transform .3s cubic-bezier(.4,0,.2,1)}
+#bagToday li.done span{color:var(--ink-3)}
+#bagToday li.done span::after{transform:scaleX(1)}
+#bagToday li::before{transition:background .25s ease}
+#bagToday li.done::before{background:var(--line)}
 .bag li span:focus{background:color-mix(in srgb,var(--accent) 10%,transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 10%,transparent)}
 .bag li button{font:inherit;font-size:16px;line-height:1;color:var(--ink-3);background:none;border:0;
