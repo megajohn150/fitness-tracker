@@ -531,8 +531,9 @@ function renderBag() {
   $('bagFull').innerHTML = BAG_GROUPS.map(grp => `
     <div class="bg">
       <h3>${grp}</h3>
-      <ul>${inGroup(grp).map(i => `
-        <li><span contenteditable data-bag="${i.id}">${escapeHtml(i.item)}</span>
+      <ul data-group="${grp}">${inGroup(grp).map(i => `
+        <li data-id="${i.id}"><span contenteditable data-bag="${i.id}">${escapeHtml(i.item)}</span>
+            <button class="grip" data-grip aria-label="Reorder ${escapeHtml(i.item)}"></button>
             <button data-del-bag="${i.id}" aria-label="Remove ${escapeHtml(i.item)}">×</button></li>`).join('')}
       </ul>
       <button class="add" data-add-bag="${grp}">+ Add item</button>
@@ -543,6 +544,71 @@ function renderBag() {
 
 const updateBagCount = total =>
   $('bagCount').textContent = `${bagChecked.size} / ${total ?? store.data.bag.length}`;
+
+/* Reordering the preset. Pointer events rather than HTML5 drag and drop, which
+   Safari on iOS does not fire at all; the row is dragged by its handle so the
+   text underneath stays editable. */
+function startReorder(event, handle) {
+  const row = handle.closest('li');
+  const list = row.parentElement;
+  const startY = event.clientY;
+
+  // The row's own position without the transform we are about to apply.
+  const baseTop = () => {
+    const applied = row.style.transform;
+    row.style.transform = 'none';
+    const top = row.getBoundingClientRect().top;
+    row.style.transform = applied;
+    return top;
+  };
+  const anchor = baseTop();
+
+  row.classList.add('dragging');
+
+  const onMove = e => {
+    if (e.pointerId !== event.pointerId) return;
+    e.preventDefault();
+    const shift = (e.clientY - startY) - (baseTop() - anchor);
+    row.style.transform = `translateY(${shift}px)`;
+
+    const centre = baseTop() + shift + row.offsetHeight / 2;
+    for (const other of [...list.children]) {
+      if (other === row) continue;
+      const box = other.getBoundingClientRect();
+      const middle = box.top + box.height / 2;
+      const isAfter = row.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING;
+      if ((isAfter && centre > middle) || (!isAfter && centre < middle)) {
+        const from = other.getBoundingClientRect().top;
+        list.insertBefore(row, isAfter ? other.nextSibling : other);
+        const slide = from - other.getBoundingClientRect().top;
+        other.style.transition = 'none';
+        other.style.transform = `translateY(${slide}px)`;
+        requestAnimationFrame(() => { other.style.transition = ''; other.style.transform = ''; });
+        break;
+      }
+    }
+  };
+
+  const onUp = async e => {
+    if (e && e.pointerId !== event.pointerId) return;
+    // Listeners live on the window: moving the row in the DOM drops any pointer
+    // capture the handle had, and the release would land on whatever is under it.
+    removeEventListener('pointermove', onMove);
+    removeEventListener('pointerup', onUp);
+    removeEventListener('pointercancel', onUp);
+    row.classList.remove('dragging');
+    row.style.transform = '';
+
+    const base = BAG_GROUPS.indexOf(list.dataset.group) * 100;
+    const ids = [...list.children].map(el => el.dataset.id);
+    for (let i = 0; i < ids.length; i++) await store.setBagPosition(ids[i], base + i);
+    renderBag();
+  };
+
+  addEventListener('pointermove', onMove, { passive: false });
+  addEventListener('pointerup', onUp);
+  addEventListener('pointercancel', onUp);
+}
 
 /** Tick, then slide the row to the bottom of its own group. */
 function toggleBagItem(id) {
@@ -934,6 +1000,11 @@ function wire() {
       renderNotes();
       toast('Note deleted');
     }
+  });
+
+  document.addEventListener('pointerdown', e => {
+    const handle = e.target.closest('[data-grip]');
+    if (handle) startReorder(e, handle);
   });
 
   $('themeBtn').onclick = () => theme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');

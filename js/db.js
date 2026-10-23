@@ -310,6 +310,12 @@ export function makeStore(data) {
       row.item = item;
       await queue('saveBagItem', { row: { id: row.id, grp: row.grp, item: row.item, position: row.position } });
     },
+    async setBagPosition(id, position) {
+      const row = data.bag.find(b => String(b.id) === String(id));
+      if (!row || row.position === position) return;
+      row.position = position;
+      await queue('saveBagItem', { row: { id: row.id, grp: row.grp, item: row.item, position } });
+    },
     async deleteBagItem(id) {
       data.bag = data.bag.filter(b => b.id !== id);
       await queue('deleteBagItem', { id });
