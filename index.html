@@ -127,6 +127,10 @@
     </table></div>
     <button class="btn pri" id="logWeightBtn2">Log today’s weight</button>
   </div>
+
+  <div class="sec"><h2>Phases</h2><em id="phaseCount"></em></div>
+  <div class="card" id="phaseList"></div>
+  <button class="btn" id="newPhaseBtn">Start new phase</button>
 </section>
 
 <!-- BODY -->
@@ -185,6 +189,15 @@
     <div class="row"><span class="k">Sleep time</span><span class="v"><input class="field time" type="time" id="setSleep" style="font-size:16px;border:0;padding:0;margin:0" aria-label="Sleep time"></span></div>
     <div class="row"><span class="k">Storage</span><span class="v" id="setStorage">—</span></div>
   </div>
+  <div class="card hide" id="syncCard" style="border-color:var(--warn);margin-top:10px">
+    <p class="lab" style="color:var(--warn)">Sync stuck</p>
+    <p class="note" style="margin-top:6px" id="syncMsg"></p>
+    <div style="display:flex;gap:10px">
+      <button class="btn" id="syncRetry">Try again</button>
+      <button class="btn" id="syncDiscard">Discard it</button>
+    </div>
+  </div>
+
   <button class="btn hide" id="signOutBtn">Sign out</button>
 </section>
 

@@ -33,7 +33,7 @@ export const DEFAULT_BAG = [
 export const DEFAULT_SETTINGS = { sleep_time: '23:30', phase_label: 'Bulk', phase_start: null };
 
 const emptyData = () => ({
-  settings: { ...DEFAULT_SETTINGS }, weights: [], measurements: [],
+  settings: { ...DEFAULT_SETTINGS }, weights: [], measurements: [], phases: [],
   week: DEFAULT_WEEK.map(d => ({ ...d })), notes: [], bag: DEFAULT_BAG.map(b => ({ ...b }))
 });
 
@@ -51,8 +51,52 @@ export const cached = () => read(CACHE_KEY, null);
 let outbox = read(OUTBOX_KEY, []);
 const saveOutbox = () => write(OUTBOX_KEY, outbox);
 
+const SYNC_KEY = 'gym.sync.v1';
+let sync = read(SYNC_KEY, { lastSync: null, error: null });
+const saveSync = () => write(SYNC_KEY, sync);
+
 export const pending = () => outbox.length;
 export const online  = () => navigator.onLine !== false;
+
+/** What the queue is doing, including the change that is blocking it. */
+export const syncInfo = () => ({
+  pending: outbox.length, online: online(),
+  lastSync: sync.lastSync, error: sync.error,
+  blocked: sync.error ? describe(outbox[0]) : null
+});
+
+const describe = op => op && ({
+  setWeight: `weight for ${op.args.day}`,
+  deleteWeight: `removing the weight for ${op.args.day}`,
+  setMeasurement: `measurement for ${op.args.day}`,
+  deleteMeasurement: `removing the measurement for ${op.args.day}`,
+  setWeekDay: 'a change to the week plan',
+  setSettings: 'a settings change',
+  addNote: 'a note',
+  deleteNote: 'removing a note',
+  saveBagItem: 'a gym bag item',
+  deleteBagItem: 'removing a gym bag item',
+  addPhase: 'a new phase',
+  deletePhase: 'removing a phase'
+}[op.type] ?? 'a change');
+
+/** Drops the change the server keeps refusing, so the rest of the queue can move. */
+export function discardBlocked() {
+  if (!outbox.length) return;
+  outbox.shift();
+  saveOutbox();
+  sync.error = null;
+  saveSync();
+  announce();
+  return flush();
+}
+
+export function retrySync() {
+  sync.error = null;
+  saveSync();
+  announce();
+  return flush();
+}
 
 let listeners = [];
 export const onSyncChange = fn => listeners.push(fn);
@@ -90,13 +134,14 @@ const remote = {
 
   async load() {
     const db = await client();
-    const [settings, weights, measurements, week, notes, bag] = await Promise.all([
+    const [settings, weights, measurements, week, notes, bag, phases] = await Promise.all([
       db.from('settings').select('*').maybeSingle(),
       db.from('weights').select('day, kg').order('day'),
       db.from('measurements').select('*').order('day'),
       db.from('week_days').select('*').order('dow'),
       db.from('notes').select('*').order('created_at', { ascending: false }),
-      db.from('bag_items').select('*').order('position')
+      db.from('bag_items').select('*').order('position'),
+      db.from('phases').select('*').order('started_on')
     ]);
     [weights, measurements, week, notes, bag].forEach(check);
 
@@ -108,8 +153,19 @@ const remote = {
       })),
       week: week.data?.length ? week.data : DEFAULT_WEEK.map(d => ({ ...d })),
       notes: notes.data ?? [],
-      bag: bag.data?.length ? bag.data : DEFAULT_BAG.map(b => ({ ...b }))
+      bag: bag.data?.length ? bag.data : DEFAULT_BAG.map(b => ({ ...b })),
+      phases: phases.data ?? []
     };
+
+    // Without a phase there is nothing to number the weeks against.
+    if (!data.phases.length) {
+      const started = settings.data?.phase_start ?? data.weights[0]?.day;
+      if (started) {
+        const seeded = await db.from('phases')
+          .insert({ label: settings.data?.phase_label ?? 'Bulk', started_on: started }).select();
+        if (seeded.data?.length) data.phases = seeded.data;
+      }
+    }
 
     if (!settings.data)     await db.from('settings').insert({});
     if (!week.data?.length) await db.from('week_days').insert(DEFAULT_WEEK);
@@ -132,6 +188,8 @@ const remote = {
   async setSettings({ patch })       { const db = await client(); check(await db.from('settings').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', await uid())); },
   async addNote({ note })            { const db = await client(); check(await db.from('notes').upsert(note, { onConflict: 'id' })); },
   async deleteNote({ id })           { const db = await client(); check(await db.from('notes').delete().eq('id', id)); },
+  async addPhase({ row })            { const db = await client(); check(await db.from('phases').upsert(row, { onConflict: 'id' })); },
+  async deletePhase({ id })          { const db = await client(); check(await db.from('phases').delete().eq('id', id)); },
   async saveBagItem({ row })         { const db = await client(); check(await db.from('bag_items').upsert(row, { onConflict: 'id' })); },
   async deleteBagItem({ id })        { const db = await client(); check(await db.from('bag_items').delete().eq('id', id)); }
 };
@@ -152,15 +210,21 @@ export async function flush() {
   try {
     while (outbox.length) {
       const op = outbox[0];
-      try { await remote[op.type](op.args); }
-      catch { break; }                       // still offline or rejected — try again later
+      try {
+        await remote[op.type](op.args);
+      } catch (err) {
+        // A rejection while online is the queue being stuck, not a dropped connection.
+        if (online()) { sync.error = err.message || 'The server refused this change.'; saveSync(); }
+        break;
+      }
       outbox.shift();
       saveOutbox();
       sent++;
     }
+    if (!outbox.length) { sync.error = null; sync.lastSync = new Date().toISOString(); saveSync(); }
   } finally {
     flushing = false;
-    if (sent) announce();
+    announce();
   }
   return sent > 0;
 }
@@ -218,6 +282,17 @@ export function makeStore(data) {
       data.notes.unshift(note);
       await queue('addNote', { note });
       return note;
+    },
+    async addPhase(label, started_on) {
+      const row = { id: crypto.randomUUID(), label, started_on };
+      data.phases = [...data.phases.filter(p => p.started_on !== started_on), row]
+        .sort((a, b) => a.started_on.localeCompare(b.started_on));
+      await queue('addPhase', { row });
+      return row;
+    },
+    async deletePhase(id) {
+      data.phases = data.phases.filter(p => p.id !== id);
+      await queue('deletePhase', { id });
     },
     async addBagItem(grp, item) {
       const inGroup = data.bag.filter(b => b.grp === grp);

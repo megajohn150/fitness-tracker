@@ -20,6 +20,8 @@ everything in that browser, which is handy for trying things out.
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open the SQL editor and run `supabase/schema.sql`. It creates the tables and
    locks every row to its owner with row level security.
+   Then run each file in `supabase/migrations/` in order — they add what came
+   after the first schema.
 3. Authentication → Users → add your account (email + password). Turn off
    "Enable email confirmations" under Authentication → Providers → Email if you
    do not want to confirm by mail.
@@ -54,7 +56,7 @@ js/config.js        Supabase URL + anon key
 js/db.js            data layer — Supabase, or this browser when unconfigured
 js/calc.js          dates, weekly grouping, caffeine tiers, unit conversion
 js/app.js           rendering, navigation and actions
-supabase/           schema and optional seed data
+supabase/           schema, migrations and optional seed data
 mockups/            the original visual sketches
 ```
 

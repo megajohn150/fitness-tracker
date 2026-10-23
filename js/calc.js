@@ -27,10 +27,12 @@ export const average = xs => {
  * Weights grouped into Mon–Fri weeks, one row per week since the phase started.
  * A new week appears on its own as soon as the calendar reaches it.
  */
-export function weeklyWeights(weights, phaseStart) {
+export function weeklyWeights(weights, phaseStart, phaseEnd) {
   if (!weights.length) return [];
   const first = mondayOf(phaseStart || weights[0].day);
-  const last  = mondayOf(new Date());
+  const today = mondayOf(new Date());
+  const last  = phaseEnd ? mondayOf(addDays(parseISO(phaseEnd), -1)) : today;
+  if (last < first) return [];
   const byDay = new Map(weights.map(w => [w.day, Number(w.kg)]));
   const weeks = [];
 

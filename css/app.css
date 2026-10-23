@@ -75,6 +75,10 @@ td[contenteditable]{cursor:text;border-radius:5px;outline:none}
 td[contenteditable]:focus{background:color-mix(in srgb,var(--accent) 10%,transparent);
   box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 10%,transparent)}
 td.diff{color:var(--ink-2)}
+.rowdel{font:inherit;font-size:16px;line-height:1;color:var(--ink-3);background:none;border:0;
+  cursor:pointer;padding:0 0 0 10px}
+.rowdel:active{color:var(--warn)}
+.row .k br+.mut{display:inline-block;margin-top:2px}
 td.del{width:24px;padding-left:8px;text-align:right}
 td.del button{font:inherit;font-size:17px;line-height:1;color:var(--ink-3);background:none;border:0;
   cursor:pointer;padding:2px 0 2px 6px}

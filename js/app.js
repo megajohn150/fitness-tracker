@@ -1,4 +1,5 @@
-import { auth, loadData, makeStore, cached, flush, pending, online, onSyncChange, BAG_GROUPS, REMOTE } from './db.js';
+import { auth, loadData, makeStore, cached, flush, pending, online, onSyncChange,
+         syncInfo, retrySync, discardBlocked, BAG_GROUPS, REMOTE } from './db.js';
 import * as C from './calc.js';
 
 const $  = id => document.getElementById(id);
@@ -66,10 +67,27 @@ function subtitleFor(name) {
 
 const sleepTime = () => store?.data.settings.sleep_time?.slice(0, 5) || '23:30';
 
+/** Phases in order, each one ending where the next begins. */
+function phaseList() {
+  const phases = (store?.data.phases ?? []).slice().sort((a, b) => a.started_on.localeCompare(b.started_on));
+  if (!phases.length) {
+    const { phase_label, phase_start } = store?.data.settings ?? {};
+    const started = phase_start ?? store?.data.weights[0]?.day;
+    return started ? [{ id: null, label: phase_label ?? 'Bulk', started_on: started, ends_on: null }] : [];
+  }
+  return phases.map((p, i) => ({ ...p, ends_on: phases[i + 1]?.started_on ?? null }));
+}
+
+const currentPhase = () => phaseList().at(-1) ?? { label: 'Bulk', started_on: null, ends_on: null };
+
+function phaseWeeks(phase) {
+  return C.weeklyWeights(store.data.weights, phase.started_on, phase.ends_on);
+}
+
 function phaseText() {
-  const { settings } = store.data;
-  const weeks = C.weeklyWeights(store.data.weights, settings.phase_start);
-  return weeks.length ? `${settings.phase_label} week ${weeks.length}` : settings.phase_label;
+  const phase = currentPhase();
+  const weeks = phaseWeeks(phase);
+  return weeks.length ? `${phase.label} week ${weeks.length}` : phase.label;
 }
 
 function theme(next) {
@@ -114,13 +132,28 @@ function openSheet({ title, sub = '', fields, action = 'Save' }) {
   dialog.showModal();
   setTimeout(() => $('sheetFields').querySelector('input,textarea')?.focus(), 50);
 
+  // WebKit does not reliably fire `close` for a method="dialog" submit, so the
+  // submit itself is what resolves this; `cancel` and `close` are the fallbacks.
   return new Promise(resolve => {
-    dialog.addEventListener('close', () => {
-      if (dialog.returnValue !== 'save') return resolve(null);
+    const form = $('sheetForm');
+
+    const finish = saved => {
+      form.removeEventListener('submit', onSubmit);
+      dialog.removeEventListener('cancel', onCancel);
+      dialog.removeEventListener('close', onClose);
+      if (!saved) return resolve(null);
       const out = {};
       $$('#sheetFields [name]').forEach(el => { out[el.name] = el.value.trim(); });
       resolve(out);
-    }, { once: true });
+    };
+
+    const onSubmit = event => finish((event.submitter?.value ?? dialog.returnValue) === 'save');
+    const onCancel = () => finish(false);
+    const onClose  = () => finish(dialog.returnValue === 'save');
+
+    form.addEventListener('submit', onSubmit);
+    dialog.addEventListener('cancel', onCancel);
+    dialog.addEventListener('close', onClose);
   });
 }
 
@@ -188,8 +221,9 @@ function renderAll() {
 }
 
 function renderWeight() {
-  const { weights, settings } = store.data;
-  const weeks = C.weeklyWeights(weights, settings.phase_start);
+  const { weights } = store.data;
+  const phase = currentPhase();
+  const weeks = phaseWeeks(phase);
   const todayISO = C.today();
   const todayEntry = weights.find(w => w.day === todayISO);
   const current = weeks.at(-1) ?? { days: [null, null, null, null, null], avg: null };
@@ -218,7 +252,7 @@ function renderWeight() {
   weekSpark('sp1', current.days);
 
   // Weight view
-  $('wkLabel').textContent = `${settings.phase_label} week ${weeks.length || 1} average`;
+  $('wkLabel').textContent = `${phase.label} week ${weeks.length || 1} average`;
   $('wkAvg').textContent = shown.avg?.toFixed(2) ?? '—';
   $('wkDelta').classList.toggle('hide', delta == null);
   if (delta != null) $('wkDelta').textContent = `${signKg(delta)} / wk`;
@@ -242,8 +276,9 @@ function renderWeight() {
         : '<td class="del"></td>') + '</tr>';
   }).join('') || '<tr><td colspan="8" class="mut">No entries yet</td></tr>';
 
-  $('phaseLabel').textContent = settings.phase_label;
-  $('phaseStart').textContent = weeks.length ? `start ${C.shortDate(weeks[0].monday)}` : '';
+  $('phaseLabel').textContent = phase.label;
+  $('phaseStart').textContent = phase.started_on ? `start ${C.shortDate(phase.started_on)}` : '';
+  renderPhases();
 
   // coaching rule from the notes
   const hint = $('wHint');
@@ -259,9 +294,53 @@ function renderWeight() {
   } else hint.classList.add('hide');
 }
 
+function renderPhases() {
+  const phases = phaseList();
+  $('phaseCount').textContent = phases.length ? `${phases.length} total` : '';
+
+  $('phaseList').innerHTML = phases.slice().reverse().map((p, i) => {
+    const weeks = phaseWeeks(p);
+    const logged = weeks.flatMap(w => w.days).filter(v => v != null);
+    const change = logged.length > 1 ? logged.at(-1) - logged[0] : null;
+    const range = `${C.shortDate(p.started_on)} – ${p.ends_on ? C.shortDate(p.ends_on) : 'now'}`;
+    return `<div class="row">
+      <span class="k">${escapeHtml(p.label)}${i === 0 ? ' · current' : ''}<br><span class="mut">${range} · ${weeks.length} wk</span></span>
+      <span class="v">${change == null ? '—' : signKg(change) + ' kg'}
+        ${p.id ? `<button class="rowdel" data-del-phase="${p.id}" aria-label="Delete phase">×</button>` : ''}</span>
+    </div>`;
+  }).join('') || '<p class="mut">No phase yet — start one to number the weeks.</p>';
+}
+
+async function newPhase() {
+  const result = await openSheet({
+    title: 'Start new phase',
+    sub: 'Week numbering restarts from here.',
+    fields: [
+      { key: 'label', label: 'Name', type: 'text', value: '', placeholder: 'Cut' },
+      { key: 'started_on', label: 'Starts on', type: 'date', value: C.isoOf(C.mondayOf(new Date())) }
+    ],
+    action: 'Start'
+  });
+  if (!result?.label || !result.started_on) return;
+  await store.addPhase(result.label, result.started_on);
+  renderAll();
+  toast(`${result.label} started`);
+}
+
+async function deletePhase(id) {
+  const phase = phaseList().find(p => p.id === id);
+  const ok = await confirmSheet({
+    title: `Delete ${phase.label}?`,
+    sub: 'The weights stay — only the phase marker goes.'
+  });
+  if (!ok) return;
+  await store.deletePhase(id);
+  renderAll();
+}
+
 function renderBody() {
-  const { measurements, settings, weights } = store.data;
-  const firstMonday = C.mondayOf(settings.phase_start || weights[0]?.day || C.today());
+  const { measurements, weights } = store.data;
+  const firstMonday = C.mondayOf(currentPhase().started_on || weights[0]?.day || C.today());
   const weekOf = iso => Math.round((C.mondayOf(iso) - firstMonday) / 6048e5) + 1;
 
   $('bodyRows').innerHTML = measurements.map((m, i) => {
@@ -410,14 +489,28 @@ function renderSettings() {
 
 /** Only speaks up when something is actually waiting or the network is gone. */
 function renderSync() {
-  const waiting = pending();
+  const { pending: waiting, online: up, error, blocked, lastSync } = syncInfo();
   const pill = $('syncPill');
-  const text = !online() ? (waiting ? `Offline · ${waiting} to sync` : 'Offline')
-             : waiting  ? `${waiting} to sync` : '';
+  const text = error ? 'Sync stuck'
+             : !up   ? (waiting ? `Offline · ${waiting} to sync` : 'Offline')
+             : waiting ? `${waiting} to sync` : '';
   pill.textContent = text;
   pill.classList.toggle('hide', !text);
+
   const storage = $('setStorage');
-  if (storage && REMOTE) storage.textContent = text ? `Supabase · ${text.toLowerCase()}` : 'Supabase · synced';
+  if (storage && REMOTE) {
+    storage.textContent = error ? 'Supabase · stuck'
+      : waiting ? `Supabase · ${waiting} waiting`
+      : lastSync ? `Supabase · ${new Date(lastSync).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+      : 'Supabase';
+  }
+
+  $('syncCard').classList.toggle('hide', !error);
+  if (error) {
+    $('syncMsg').textContent =
+      `The server refused ${blocked ?? 'a change'} and the queue stopped behind it` +
+      `${waiting > 1 ? `, holding ${waiting - 1} more` : ''}. ${error}`;
+  }
 }
 
 /* ------------------------------ calculator ------------------------------ */
@@ -498,7 +591,7 @@ async function addNote() {
 }
 
 async function clearWeek(monday) {
-  const weeks = C.weeklyWeights(store.data.weights, store.data.settings.phase_start);
+  const weeks = phaseWeeks(currentPhase());
   const week = weeks.find(w => w.monday === monday);
   const days = week.days
     .map((v, k) => (v == null ? null : C.isoOf(C.addDays(C.parseISO(monday), k))))
@@ -534,6 +627,9 @@ function wire() {
     const target = e.target.closest('[data-go]');
     if (target) return go(target.dataset.go);
 
+    const phaseId = e.target.dataset.delPhase;
+    if (phaseId) return deletePhase(phaseId);
+
     const addGroup = e.target.dataset.addBag;
     if (addGroup) return addBagItem(addGroup);
 
@@ -565,6 +661,9 @@ function wire() {
   $('addNoteBtn').onclick = addNote;
   $('mondayCta').onclick = addMeasurement;
   $('signOutBtn').onclick = async () => { await auth.signOut(); location.reload(); };
+  $('newPhaseBtn').onclick = newPhase;
+  $('syncRetry').onclick = () => retrySync();
+  $('syncDiscard').onclick = async () => { await discardBlocked(); renderSync(); toast('Change discarded'); };
 
   $('setSleep').onchange = async e => {
     await store.setSettings({ sleep_time: e.target.value });
