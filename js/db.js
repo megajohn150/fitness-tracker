@@ -21,6 +21,8 @@ export const DEFAULT_WEEK = [
   { dow: 6, steps: 20000, session: 'Post', extra: '',       maintenance: 2939, eat: 3100 }
 ];
 
+export const BAG_GROUPS = ['Pack every time', 'Depends on the day', 'Always in the bag'];
+
 export const DEFAULT_BAG = [
   ['Pack every time',    ['Deodorant', 'Headphones', 'Straps', 'Intra carbs']],
   ['Depends on the day', ['Pre-workout', 'Daisy chain']],
@@ -112,7 +114,10 @@ const remote = {
     if (!settings.data)     await db.from('settings').insert({});
     if (!week.data?.length) await db.from('week_days').insert(DEFAULT_WEEK);
     if (!bag.data?.length) {
-      await db.from('bag_items').insert(DEFAULT_BAG.map(({ grp, item, position }) => ({ grp, item, position })));
+      const seeded = await db.from('bag_items')
+        .insert(DEFAULT_BAG.map(({ grp, item, position }) => ({ grp, item, position })))
+        .select();
+      if (seeded.data?.length) data.bag = seeded.data;
     }
 
     write(CACHE_KEY, data);
@@ -126,7 +131,9 @@ const remote = {
   async setWeekDay({ dow, patch })   { const db = await client(); check(await db.from('week_days').update(patch).eq('dow', dow).eq('user_id', await uid())); },
   async setSettings({ patch })       { const db = await client(); check(await db.from('settings').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', await uid())); },
   async addNote({ note })            { const db = await client(); check(await db.from('notes').upsert(note, { onConflict: 'id' })); },
-  async deleteNote({ id })           { const db = await client(); check(await db.from('notes').delete().eq('id', id)); }
+  async deleteNote({ id })           { const db = await client(); check(await db.from('notes').delete().eq('id', id)); },
+  async saveBagItem({ row })         { const db = await client(); check(await db.from('bag_items').upsert(row, { onConflict: 'id' })); },
+  async deleteBagItem({ id })        { const db = await client(); check(await db.from('bag_items').delete().eq('id', id)); }
 };
 
 export const auth = REMOTE
@@ -211,6 +218,26 @@ export function makeStore(data) {
       data.notes.unshift(note);
       await queue('addNote', { note });
       return note;
+    },
+    async addBagItem(grp, item) {
+      const inGroup = data.bag.filter(b => b.grp === grp);
+      const row = {
+        id: crypto.randomUUID(), grp, item,
+        position: (inGroup.length ? Math.max(...inGroup.map(b => b.position)) : BAG_GROUPS.indexOf(grp) * 100) + 1
+      };
+      data.bag.push(row);
+      await queue('saveBagItem', { row });
+      return row;
+    },
+    async renameBagItem(id, item) {
+      const row = data.bag.find(b => b.id === id);
+      if (!row || row.item === item) return;
+      row.item = item;
+      await queue('saveBagItem', { row: { id: row.id, grp: row.grp, item: row.item, position: row.position } });
+    },
+    async deleteBagItem(id) {
+      data.bag = data.bag.filter(b => b.id !== id);
+      await queue('deleteBagItem', { id });
     },
     async deleteNote(id) {
       data.notes = data.notes.filter(n => n.id !== id);

@@ -1,4 +1,4 @@
-import { auth, loadData, makeStore, cached, flush, pending, online, onSyncChange, REMOTE } from './db.js';
+import { auth, loadData, makeStore, cached, flush, pending, online, onSyncChange, BAG_GROUPS, REMOTE } from './db.js';
 import * as C from './calc.js';
 
 const $  = id => document.getElementById(id);
@@ -329,15 +329,37 @@ function updateTotals() {
 }
 
 function renderBag() {
-  const groups = [];
-  store.data.bag.slice().sort((a, b) => a.position - b.position).forEach(item => {
-    const group = groups.find(g => g.name === item.grp) ?? (groups.push({ name: item.grp, items: [] }), groups.at(-1));
-    group.items.push(item.item);
+  const items = store.data.bag.slice().sort((a, b) => a.position - b.position);
+  const groupsWith = grp => items.filter(i => i.grp === grp);
+
+  // Today only glances at the list, so it stays plain text.
+  $('bagToday').innerHTML = BAG_GROUPS
+    .filter(grp => groupsWith(grp).length)
+    .map(grp => `<div class="bg"><h3>${grp}</h3><ul>` +
+      groupsWith(grp).map(i => `<li>${escapeHtml(i.item)}</li>`).join('') + '</ul></div>').join('');
+
+  $('bagFull').innerHTML = BAG_GROUPS.map(grp => `
+    <div class="bg">
+      <h3>${grp}</h3>
+      <ul>${groupsWith(grp).map(i => `
+        <li><span contenteditable data-bag="${i.id}">${escapeHtml(i.item)}</span>
+            <button data-del-bag="${i.id}" aria-label="Remove ${escapeHtml(i.item)}">×</button></li>`).join('')}
+      </ul>
+      <button class="add" data-add-bag="${grp}">+ Add item</button>
+    </div>`).join('');
+
+  $('bagCount').textContent = `${items.length} items`;
+}
+
+async function addBagItem(grp) {
+  const result = await openSheet({
+    title: 'Add item', sub: grp,
+    fields: [{ key: 'item', label: 'Name', type: 'text', placeholder: 'Wrist wraps' }],
+    action: 'Add'
   });
-  const html = groups.map(g => `<div class="bg"><h3>${g.name}</h3><ul>${g.items.map(i => `<li>${i}</li>`).join('')}</ul></div>`).join('');
-  $('bagToday').innerHTML = html;
-  $('bagFull').innerHTML = html;
-  $('bagCount').textContent = `${store.data.bag.length} items`;
+  if (!result?.item) return;
+  await store.addBagItem(grp, result.item);
+  renderBag();
 }
 
 function renderNotes() {
@@ -512,6 +534,16 @@ function wire() {
     const target = e.target.closest('[data-go]');
     if (target) return go(target.dataset.go);
 
+    const addGroup = e.target.dataset.addBag;
+    if (addGroup) return addBagItem(addGroup);
+
+    const bagId = e.target.dataset.delBag;
+    if (bagId) {
+      await store.deleteBagItem(bagId);
+      renderBag();
+      return;
+    }
+
     const monday = e.target.dataset.clearWeek;
     if (monday) return clearWeek(monday);
 
@@ -550,6 +582,16 @@ function wire() {
     const day = store.data.week.find(d => d.dow === dow);
     day[key] = (key === 'session' || key === 'extra') ? e.target.textContent.trim() : num(e.target.textContent);
     updateTotals();
+  });
+
+  // a gym bag item
+  document.addEventListener('focusout', async e => {
+    const id = e.target.dataset?.bag;
+    if (!id) return;
+    const name = e.target.textContent.trim();
+    if (!name) await store.deleteBagItem(id);
+    else await store.renameBagItem(id, name);
+    renderBag();
   });
 
   // a weight cell in the Bulk table
