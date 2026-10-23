@@ -454,6 +454,8 @@ function updateTotals() {
     tr.querySelector('.diff').textContent = sign(d.eat - d.maintenance);
   });
 
+  if ($('stepsGoal')) renderStepsLeft();
+
   const today = week.find(d => d.dow === C.dowOf(new Date()));
   $('tSteps').textContent = sp(today.steps);
   $('tEat').textContent = sp(today.eat);
@@ -659,6 +661,30 @@ async function applyAdjustment(total, monday) {
 
 /* ------------------------------ calculator ------------------------------ */
 
+/** Today's step count, kept on this device only — it is a scratch number. */
+const STEPS_KEY = 'gym.steps.today';
+function todaySteps() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STEPS_KEY));
+    return saved?.day === C.today() ? saved.steps : null;
+  } catch { return null; }
+}
+function saveTodaySteps(steps) {
+  try { localStorage.setItem(STEPS_KEY, JSON.stringify({ day: C.today(), steps })); } catch {}
+}
+
+function renderStepsLeft() {
+  const goal = store.data.week.find(d => d.dow === C.dowOf(new Date()))?.steps ?? 0;
+  const done = num($('stepsNow').value);
+  const left = Math.max(0, goal - done);
+
+  $('stepsGoal').textContent = sp(goal);
+  $('stepsLeft').textContent = done ? (left ? sp(left) : 'goal reached') : '—';
+  $('useLeftBtn').disabled = !left;
+  $('useLeftBtn').textContent = left ? `Convert ${sp(left)} steps` : 'Nothing left to convert';
+  return left;
+}
+
 function setupCalculator() {
   const from = $('cFrom'), to = $('cTo');
   Object.entries(C.UNITS).forEach(([key, unit]) => {
@@ -683,6 +709,22 @@ function setupCalculator() {
 
   from.onchange = to.onchange = run;
   $('cAmt').oninput = run;
+
+  const stepsNow = $('stepsNow');
+  const saved = todaySteps();
+  if (saved != null) stepsNow.value = sp(saved);
+  stepsNow.oninput = () => { saveTodaySteps(num(stepsNow.value)); renderStepsLeft(); };
+  stepsNow.onblur = () => { const n = num(stepsNow.value); if (n) stepsNow.value = sp(n); };
+
+  $('useLeftBtn').onclick = () => {
+    const left = renderStepsLeft();
+    if (!left) return;
+    from.value = 'steps';
+    if (to.value === 'steps') to.value = 'incline';
+    $('cAmt').value = sp(left);
+    run();
+    $('cAmt').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  };
   $('swapBtn').onclick = () => { [from.value, to.value] = [to.value, from.value]; run(); };
   run();
 }
