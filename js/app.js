@@ -426,7 +426,7 @@ function renderActivity() {
   const cell = (dow, key, value) => `<td contenteditable data-dow="${dow}" data-key="${key}">${value}</td>`;
 
   $('planRows').innerHTML = week.map(d => `<tr class="${d.dow === todayIndex ? 'cur' : ''}"><td>${C.DAY_NAMES[d.dow]}</td>` +
-    cell(d.dow, 'steps', sp(d.steps)) + cell(d.dow, 'session', d.session || '—') + cell(d.dow, 'extra', d.extra || '—') + '</tr>').join('');
+    cell(d.dow, 'steps', sp(d.steps)) + cell(d.dow, 'session', d.session || '—') + '</tr>').join('');
 
   $('energyRows').innerHTML = week.map(d => `<tr class="${d.dow === todayIndex ? 'cur' : ''}"><td>${C.DAY_NAMES[d.dow]}</td>` +
     cell(d.dow, 'maintenance', sp(d.maintenance)) + cell(d.dow, 'eat', sp(d.eat)) +
@@ -832,7 +832,7 @@ function wire() {
     if (!key) return;
     const dow = Number(e.target.dataset.dow);
     const day = store.data.week.find(d => d.dow === dow);
-    day[key] = (key === 'session' || key === 'extra') ? e.target.textContent.trim() : num(e.target.textContent);
+    day[key] = key === 'session' ? e.target.textContent.trim() : num(e.target.textContent);
     updateTotals();
   });
 
@@ -862,7 +862,7 @@ function wire() {
     if (!key) return;
     const dow = Number(e.target.dataset.dow);
     const day = store.data.week.find(d => d.dow === dow);
-    if (key === 'session' || key === 'extra') {
+    if (key === 'session') {
       if (!day[key]) e.target.textContent = '—';
     } else {
       e.target.textContent = sp(day[key]);
