@@ -268,15 +268,28 @@ function renderWeight() {
   const previous = weeks[weeks.indexOf(shown) - 1];
   const delta = shown.avg != null && previous?.avg != null ? shown.avg - previous.avg : null;
 
+  // Weighing happens Monday to Friday, so the weekend has nothing to ask for.
+  const weekend = C.dowOf(new Date()) > 4;
+  const logged = shown.days.filter(d => d != null).length;
+
   // Today card
-  $('wLogged').classList.toggle('hide', !todayEntry);
-  $('wEmpty').classList.toggle('hide', Boolean(todayEntry));
-  $('logWeightBtn').classList.toggle('hide', Boolean(todayEntry));
+  $('wLogged').classList.toggle('hide', !todayEntry && !weekend);
+  $('wEmpty').classList.toggle('hide', Boolean(todayEntry) || weekend);
+  $('logWeightBtn').classList.toggle('hide', Boolean(todayEntry) || weekend);
+  $('logWeightBtn2').classList.toggle('hide', weekend);
+  $('weekendNote').classList.toggle('hide', !weekend);
   $('logWeightBtn2').textContent = todayEntry ? 'Update today’s weight' : 'Log today’s weight';
-  if (todayEntry) {
+
+  if (weekend) {
+    // The week is closed: show what it came to, not an empty slot for today.
+    $('wToday').textContent = shown.avg?.toFixed(2) ?? '—';
+    $('wSub').textContent = shown.avg != null
+      ? `${shown.label} average · ${logged} of 5 days`
+      : 'Nothing logged this week';
+  } else if (todayEntry) {
     $('wToday').textContent = todayEntry.kg.toFixed(2);
-    $('wAvg').textContent = shown.avg?.toFixed(2) ?? '—';
-    $('wDays').textContent = `${shown.days.filter(d => d != null).length} of 5 days`;
+    $('wSub').innerHTML = `Week avg <b style="color:var(--ink);font-weight:500">` +
+      `${shown.avg?.toFixed(2) ?? '—'}</b> · ${logged} of 5 days`;
   } else {
     const last = weights.at(-1);
     const thisWeek = C.isoOf(C.mondayOf(new Date()));

@@ -54,7 +54,7 @@
     <div class="sec" style="margin:0 0 4px"><h2>Weight</h2><span class="pill up hide" id="wPill"></span></div>
     <div id="wLogged" class="hide">
       <div class="num n1"><b id="wToday">—</b><span class="unit"> kg</span></div>
-      <p class="mut" style="margin-top:6px">Week avg <b id="wAvg" style="color:var(--ink);font-weight:500">—</b> · <span id="wDays"></span></p>
+      <p class="mut" style="margin-top:6px" id="wSub">Week avg <b id="wAvg" style="color:var(--ink);font-weight:500">—</b> · <span id="wDays"></span></p>
     </div>
     <div id="wEmpty">
       <div class="num n1" style="color:var(--ink-3)">—<span class="unit" style="color:var(--ink-3)"> kg</span></div>
@@ -126,6 +126,7 @@
       <tbody id="bulkRows"></tbody>
     </table></div>
     <button class="btn pri" id="logWeightBtn2">Log today’s weight</button>
+    <p class="mut hide" id="weekendNote" style="margin-top:11px">Weighing runs Monday to Friday. Tap any day above to fill one you missed.</p>
   </div>
 
   <div class="sec"><h2>Phases</h2><em id="phaseCount"></em></div>
