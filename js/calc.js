@@ -86,6 +86,8 @@ export const KCAL_PER_KG = 7700;
 export const UNITS = {
   steps:   { label: 'steps',           factor: 1 },
   incline: { label: 'incline minutes', factor: 262 },
+  flat:    { label: 'flat minutes',    factor: 120 },   // plain walking: 5.16 kcal/min
+
   stepper: { label: 'stepper minutes', factor: 400 },
   kcal:    { label: 'kcal',            factor: 1 / 0.043 }
 };
