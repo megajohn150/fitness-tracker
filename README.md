@@ -28,8 +28,6 @@ everything in that browser, which is handy for trying things out.
 4. Project settings → API: copy the project URL and the `anon` key into
    `js/config.js`. The anon key is meant to be public — RLS is what protects the
    data, so never paste the `service_role` key anywhere in this repo.
-5. Optional: edit the email in `supabase/seed.sql` and run it to import the
-   history from the old notes.
 
 ## Deploy to Cloudflare Pages
 
@@ -56,7 +54,7 @@ js/config.js        Supabase URL + anon key
 js/db.js            data layer — Supabase, or this browser when unconfigured
 js/calc.js          dates, weekly grouping, caffeine tiers, unit conversion
 js/app.js           rendering, navigation and actions
-supabase/           schema, migrations and optional seed data
+supabase/           schema and migrations
 mockups/            the original visual sketches
 ```
 
