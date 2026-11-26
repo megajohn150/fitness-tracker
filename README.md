@@ -1,6 +1,6 @@
 <div align="center">
 
-# 💪 Fitness Tracker
+# Fitness Tracker
 
 ### Weight, measurements, the week's activity and caffeine, in one pocket app
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 📖 Overview
+## Overview
 
 A personal tracker for the numbers around training: body weight with weekly averages, body
 measurements, the weekly activity plan, a caffeine limit based on how long is left before
@@ -36,44 +36,46 @@ sleep, and a steps / treadmill-minutes / kcal converter.
 Plain HTML, CSS and ES modules, with no framework and no build step. Data lives in Supabase,
 and the app keeps working offline.
 
-## ✨ Features
+## Features
 
-### ⚖️ Weight and body
+### Weight and body
 - Daily weigh-ins with a weekly average and a trend chart
 - Advice from the weekly change: gaining too fast says how many calories to cut, too slow says how many to add
 - Bulk and cut phases, each with its own start date and history
 - Body measurements every Monday, with the change since the start
 
-### 🏃 The week
+### The week
 - A weekly activity plan and an energy balance you can edit with a tap
 - Steps left for the day, and a weekly review that plans the week after it
 - A converter between steps, incline and stepper minutes, and kcal
 
-### ☕ Everyday
+### Everyday
 - A caffeine limit that shrinks as bedtime gets closer
 - A gym bag checklist and notes
 
-### ⚙️ Under the hood
+### Under the hood
 - Offline-first: changes wait in an outbox and sync when the connection is back
 - Works with no backend at all: leave the config empty and everything stays in the browser
 - Installs to the iPhone home screen and opens without browser chrome
 
-## 🧱 How it is built
+## How it is built
 
 | Part | What it uses |
 |---|---|
-| 📱 App | `index.html` + `css/app.css` + ES modules in `js/` |
-| 🗄️ Data | Supabase (Postgres + Auth), or the browser's storage when unconfigured |
-| 📡 Offline | `sw.js`, a service worker for the app shell |
-| ☁️ Hosting | Cloudflare Pages, serving the repository root as is |
+| App | `index.html` + `css/app.css` + ES modules in `js/` |
+| Data | Supabase (Postgres + Auth), or the browser's storage when unconfigured |
+| Offline | `sw.js`, a service worker for the app shell |
+| Hosting | Cloudflare Pages, serving the repository root as is |
 
-## 🔒 Security
+## Security
+
+<img src="https://img.shields.io/badge/RLS-every_table-3FCF8E?style=flat-square&logo=supabase&logoColor=white" alt="RLS: every table"> <img src="https://img.shields.io/badge/sign--ups-closed-555555?style=flat-square" alt="sign--ups: closed">
 
 Every table has row level security that locks each row to its owner, so a signed-in account
 sees only its own data. The key in `js/config.js` is the public `anon` key; the `service_role`
 key never goes into this repo. New sign-ups are switched off, since the app has one user.
 
-## 🚀 Run it locally
+## Run it locally
 
 ```bash
 python3 -m http.server 8777
@@ -82,7 +84,7 @@ python3 -m http.server 8777
 Then open http://localhost:8777. With `js/config.js` left empty the app stores everything in
 that browser, which is handy for trying things out.
 
-## 🗄️ Connect Supabase
+## Connect Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open the SQL editor and run `supabase/schema.sql`. It creates the tables and locks every
@@ -94,7 +96,7 @@ that browser, which is handy for trying things out.
    anon key is meant to be public, since RLS is what protects the data. Never paste the
    `service_role` key anywhere in this repo.
 
-## ☁️ Deploy to Cloudflare Pages
+## Deploy to Cloudflare Pages
 
 Connect the GitHub repository in the Cloudflare dashboard and create a Pages project with:
 
@@ -103,12 +105,12 @@ Connect the GitHub repository in the Cloudflare dashboard and create a Pages pro
 
 Every push to `main` publishes the site.
 
-## 📱 On the phone
+## On the phone
 
 Open the deployed URL in Safari → Share → Add to Home Screen. The manifest and
 `apple-mobile-web-app-capable` make it open without browser chrome, so it behaves like an app.
 
-## 📂 Project layout
+## Project layout
 
 ```
 index.html          markup for every view
@@ -121,7 +123,7 @@ supabase/           schema and migrations
 mockups/            the original visual sketches
 ```
 
-## 🔢 Conversion rates
+## Conversion rates
 
 Everything is expressed in steps, which keeps the four rules consistent:
 
